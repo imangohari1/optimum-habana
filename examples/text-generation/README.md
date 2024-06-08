@@ -30,7 +30,7 @@ Then, if you plan to use [DeepSpeed-inference](https://docs.habana.ai/en/latest/
 ```bash
 pip install git+https://github.com/HabanaAI/DeepSpeed.git@1.15.0
 ```
-
+  > The use of `--use_mpi` in this example leads to evoked processes each (independetly) perfomring inference.
 
 ## Usage
 
