@@ -63,8 +63,9 @@ from .falcon import (
 from .gemma import (
     GaudiGemmaDecoderLayer,
     GaudiGemmaForCausalLM,
-    gaudi_gemma_attention_forward,
-    gaudi_gemma_model_forward,
+    GaudiGemmaAttention,
+    GaudiGemmaModel,
+    GaudiGemmaMLP,
 )
 from .gpt2 import GaudiGPT2Attention, GaudiGPT2Block, GaudiGPT2LMHeadModel, gaudi_gpt2_forward
 from .gpt_bigcode import (
