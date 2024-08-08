@@ -162,10 +162,10 @@ class GaudiGPTJAttention(GPTJAttention):
         use_cache: Optional[bool] = False,
         output_attentions: Optional[bool] = False,
         token_idx: Optional[torch.Tensor] = None,
-        reuse_cache: Optional[bool] = False,
-        cache_idx: Optional[int] = None,
         sin: Optional[torch.Tensor] = None,
         cos: Optional[torch.Tensor] = None,
+        reuse_cache: Optional[bool] = False,
+        cache_idx: Optional[int] = None,
     ) -> Union[
         Tuple[torch.Tensor, Tuple[torch.Tensor]],
         Optional[Tuple[torch.Tensor, Tuple[torch.Tensor], Tuple[torch.Tensor, ...]]],
@@ -291,10 +291,10 @@ class GaudiGPTJBlock(GPTJBlock):
         use_cache: Optional[bool] = False,
         output_attentions: Optional[bool] = False,
         token_idx: Optional[torch.Tensor] = None,
-        reuse_cache: Optional[bool] = False,
-        cache_idx: Optional[int] = None,
         sin: Optional[torch.Tensor] = None,
         cos: Optional[torch.Tensor] = None,
+        reuse_cache: Optional[bool] = False,
+        cache_idx: Optional[int] = None,
     ) -> Union[Tuple[torch.Tensor], Optional[Tuple[torch.Tensor, Tuple[torch.FloatTensor, ...]]]]:
         """
         Copied from GPTJBlock.forward: https://github.com/huggingface/transformers/blob/main/src/transformers/models/gptj/modeling_gptj.py
