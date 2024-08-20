@@ -44,6 +44,12 @@ if os.environ.get("GAUDI2_CI", "0") == "1":
             ("Deci/DeciLM-7B", 1, False, 120),
         ],
         "fp8": [
+            ("meta-llama/Meta-Llama-3-8B", 1, 2429, False, 128, 128, 17980.02),
+            ("meta-llama/Meta-Llama-3-8B", 1, 289, False, 128, 2048, 11002.68),
+            ("meta-llama/Meta-Llama-3-8B", 1, 179, False, 2048, 128, 1727.108),
+            ("meta-llama/Meta-Llama-3-8B", 1, 155, False, 2048, 2048, 5302.31),
+        ],
+        "_fp8": [
             ("tiiuae/falcon-180B", 4, 950, True, 128, 128, 2506.68),
             ("meta-llama/Llama-2-7b-hf", 1, 1230, False, 128, 128, 13152.7),
             ("meta-llama/Llama-2-7b-hf", 1, 163, False, 128, 2048, 4774.7),
@@ -190,7 +196,7 @@ def _test_text_generation(
     if fp8:
         if "--trim_logits" not in command:
             command += ["--trim_logits"]
-        if "Llama-2" in model_name:
+        if any(_i in model_name for _i in "Llama-2 Llama-3"):
             command.insert(-2, "--use_flash_attention")
             command.insert(-2, "--flash_attention_recompute")
             command.insert(-2, "--bucket_size 128")
