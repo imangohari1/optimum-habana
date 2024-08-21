@@ -44,10 +44,22 @@ if os.environ.get("GAUDI2_CI", "0") == "1":
             ("Deci/DeciLM-7B", 1, False, 120),
         ],
         "fp8": [
-            ("meta-llama/Meta-Llama-3-8B", 1, 2429, False, 128, 128, 17980.02),
-            ("meta-llama/Meta-Llama-3-8B", 1, 289, False, 128, 2048, 11002.68),
-            ("meta-llama/Meta-Llama-3-8B", 1, 179, False, 2048, 128, 1727.108),
-            ("meta-llama/Meta-Llama-3-8B", 1, 155, False, 2048, 2048, 5302.31),
+            #("meta-llama/Meta-Llama-3-8B", 1, 2429, False, 128, 128, 17980.02),
+            #("meta-llama/Meta-Llama-3-8B", 1, 289, False, 128, 2048, 11002.68),
+            #("meta-llama/Meta-Llama-3-8B", 1, 179, False, 2048, 128, 1727.108),
+            #("meta-llama/Meta-Llama-3-8B", 1, 155, False, 2048, 2048, 5302.31),
+            #("meta-llama/Meta-Llama-3.1-8B", 1, 2429, False, 128, 128, 17942.12),
+            #("meta-llama/Meta-Llama-3.1-8B", 1, 289, False, 128, 2048, 11091.23),
+            #("meta-llama/Meta-Llama-3.1-8B", 1, 179, False, 2048, 128, 1729.474),
+            #("meta-llama/Meta-Llama-3.1-8B", 1, 155, False, 2048, 2048, 5342.33 ),
+            ("meta-llama/Llama-2-70b-hf", 8, 1750, False, 128, 128, 2784),
+            ("meta-llama/Llama-2-70b-hf", 8, 914, False, 128, 2048, 6914.8),
+            ("meta-llama/Llama-2-70b-hf", 8, 207, False, 2048, 128, 576.1),
+            ("meta-llama/Llama-2-70b-hf", 8, 225, False, 2048, 2048, 5130.7),
+            #("meta-llama/Meta-Llama-3.1-70B", 1, 600, False, 128, 128, 2105.9),
+            #("meta-llama/Meta-Llama-3.1-70B", 1, 88, False, 128, 2048, 1117.0),
+            #("meta-llama/Meta-Llama-3.1-70B", 1, 45, False, 2048, 128, 208.0),
+            #("meta-llama/Meta-Llama-3.1-70B", 1, 45, False, 2048, 2048, 496.3),
         ],
         "_fp8": [
             ("tiiuae/falcon-180B", 4, 950, True, 128, 128, 2506.68),
@@ -201,6 +213,9 @@ def _test_text_generation(
             command.insert(-2, "--flash_attention_recompute")
             command.insert(-2, "--bucket_size 128")
             command.insert(-2, "--bucket_internal")
+            #if any(_j in model_name for _j in "70b 70B"):
+            #    command.insert(-2, "--disk_offload")
+            #    command.insert(-2, "--book_source")
         if "Mistral" in model_name:
             command.insert(-2, "--use_flash_attention")
             command.insert(-2, "--flash_attention_recompute")
