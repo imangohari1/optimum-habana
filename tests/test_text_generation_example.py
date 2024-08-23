@@ -71,7 +71,7 @@ if os.environ.get("GAUDI2_CI", "0") == "1":
             ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 110, False, 2048, 2048, 3780.27),
             ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 120, False, 2048, 2048, 3982.36),
             ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 130, False, 2048, 2048, 4114.39),
-            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 140, False, 2048, 2048, 3465.08),
+            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 140, False, 2048, 2048, 4363.51),
         ],
         "_fp8": [
             ("tiiuae/falcon-180B", 4, 950, True, 128, 128, 2506.68),
