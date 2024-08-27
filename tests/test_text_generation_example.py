@@ -15,7 +15,40 @@ from .test_examples import TIME_PERF_FACTOR
 prev_quant_model_name = None
 prev_quant_rank = 0
 
-if os.environ.get("GAUDI2_CI", "0") == "1":
+if os.environ.get("GAUDI3_CI", "0") == "1":
+    # Gaudi3 CI baselines
+    MODELS_TO_TEST = {
+        "bf16_1x": [],
+        "fp8": [
+            ("meta-llama/Meta-Llama-3-8B", 1, 2000, False, 128, 128, 21915.380),
+            ("meta-llama/Meta-Llama-3-8B", 1, 289, False, 128, 2048, 14551.016),
+            ("meta-llama/Meta-Llama-3-8B", 1, 150, False, 2048, 128, 2172.723),
+            ("meta-llama/Meta-Llama-3-8B", 1, 140, False, 2048, 2048, 6931.59),
+            ("meta-llama/Meta-Llama-3.1-8B", 1, 2000, False, 128, 128, 21915.380),
+            ("meta-llama/Meta-Llama-3.1-8B", 1, 289, False, 128, 2048, 14551.016),
+            ("meta-llama/Meta-Llama-3.1-8B", 1, 150, False, 2048, 128, 2172.723),
+            ("meta-llama/Meta-Llama-3.1-8B", 1, 140, False, 2048, 2048, 6931.59),
+            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 2, 1000, False, 128, 128, 3610.85),
+            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 2, 250, False, 128, 2048, 4404.764),
+            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 2, 192, False, 2048, 128, 425.472),
+            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 2, 100, False, 2048, 2048, 2002.575),
+            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 2, 192, False, 2048, 2048, 2197.133)
+            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 1, 250, False, 128, 128, 2474.45),
+            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 1, 500, False, 128, 128, 2524.577),
+            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 1, 60, False, 128, 2048, 1729.745),
+            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 1, 25, False, 2048, 128, 227.794),
+            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 1, 25, False, 2048, 2048, 633.8),
+
+        ],
+        "deepspeed": [],
+        "torch_compile": [
+            ("meta-llama/Llama-2-7b-hf", 102.27823420713148),
+        ],
+        "torch_compile_distributed": [],
+        "distributed_tp": [],
+        "contrastive_search": [],
+    }
+elif os.environ.get("GAUDI2_CI", "0") == "1":
     # Gaudi2 CI baselines
     MODELS_TO_TEST = {
         "bf16_1x": [
