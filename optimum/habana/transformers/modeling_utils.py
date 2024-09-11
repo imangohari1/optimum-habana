@@ -45,7 +45,10 @@ from .models import (
     GaudiFalconForCausalLM,
     GaudiFalconMLP,
     GaudiFalconModel,
+    GaudiGemmaMLP,
+    GaudiGemmaAttention,
     GaudiGemmaDecoderLayer,
+    GaudiGemmaModel,
     GaudiGemmaForCausalLM,
     GaudiGPT2Attention,
     GaudiGPT2Block,
@@ -91,6 +94,11 @@ from .models import (
     GaudiQwen2ForCausalLM,
     GaudiQwen2MLP,
     GaudiQwen2Model,
+    GaudiQwen2MoeAttention,
+    GaudiQwen2MoeDecoderLayer,
+    GaudiQwen2MoeForCausalLM,
+    GaudiQwen2MoeMLP,
+    GaudiQwen2MoeModel,
     GaudiStableLmDecoderLayer,
     GaudiStableLmForCausalLM,
     GaudiStarcoder2Attention,
@@ -135,8 +143,6 @@ from .models import (
     gaudi_esm_for_protein_folding_forward,
     gaudi_esmfolding_trunk_forward,
     gaudi_falcon_linear_forward,
-    gaudi_gemma_attention_forward,
-    gaudi_gemma_model_forward,
     gaudi_generate_speech,
     gaudi_get_extended_attention_mask,
     gaudi_gpt2_forward,
@@ -163,6 +169,8 @@ from .models import (
     gaudi_persimmon_decoder_layer_forward,
     gaudi_persimmon_model_forward,
     gaudi_qwen2_rmsnorm_forward,
+    gaudi_qwen2moe_block_sparse_moe_forward,
+    gaudi_qwen2moe_rmsnorm_forward,
     gaudi_rot_matmul,
     gaudi_rot_vec_mul,
     gaudi_SeamlessM4TAttention_forward,
@@ -438,9 +446,10 @@ def adapt_transformers_to_gaudi():
 
     # Optimization for gemma on Gaudi
     transformers.models.gemma.modeling_gemma.GemmaForCausalLM = GaudiGemmaForCausalLM
-    transformers.models.gemma.modeling_gemma.GemmaAttention.forward = gaudi_gemma_attention_forward
+    transformers.models.gemma.modeling_gemma.GemmaMLP = GaudiGemmaMLP
+    transformers.models.gemma.modeling_gemma.GemmaAttention = GaudiGemmaAttention
     transformers.models.gemma.modeling_gemma.GemmaDecoderLayer = GaudiGemmaDecoderLayer
-    transformers.models.gemma.modeling_gemma.GemmaModel.forward = gaudi_gemma_model_forward
+    transformers.models.gemma.modeling_gemma.GemmaModel = GaudiGemmaModel
 
     # Optimization for blip Text model on Gaudi
     transformers.models.blip.BlipTextModel.forward = gaudi_BlipTextModel_forward
@@ -530,6 +539,17 @@ def adapt_transformers_to_gaudi():
     transformers.models.qwen2.modeling_qwen2.Qwen2MLP = GaudiQwen2MLP
     transformers.models.qwen2.modeling_qwen2.Qwen2DecoderLayer = GaudiQwen2DecoderLayer
     transformers.models.qwen2.modeling_qwen2.Qwen2RMSNorm.forward = gaudi_qwen2_rmsnorm_forward
+
+    # Optimization for qwen2Moe on Gaudi
+    transformers.models.qwen2_moe.modeling_qwen2_moe.Qwen2MoeMLP = GaudiQwen2MoeMLP
+    transformers.models.qwen2_moe.modeling_qwen2_moe.Qwen2MoeAttention = GaudiQwen2MoeAttention
+    transformers.models.qwen2_moe.modeling_qwen2_moe.Qwen2MoeDecoderLayer = GaudiQwen2MoeDecoderLayer
+    transformers.models.qwen2_moe.modeling_qwen2_moe.Qwen2MoeModel = GaudiQwen2MoeModel
+    transformers.models.qwen2_moe.modeling_qwen2_moe.Qwen2MoeForCausalLM = GaudiQwen2MoeForCausalLM
+    transformers.models.qwen2_moe.modeling_qwen2_moe.Qwen2MoeRMSNorm.forward = gaudi_qwen2moe_rmsnorm_forward
+    transformers.models.qwen2_moe.modeling_qwen2_moe.Qwen2MoeSparseMoeBlock.forward = (
+        gaudi_qwen2moe_block_sparse_moe_forward
+    )
 
     # Optimization for stablelm on Gaudi
     transformers.models.stablelm.modeling_stablelm.StableLmForCausalLM = GaudiStableLmForCausalLM

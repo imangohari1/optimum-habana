@@ -67,8 +67,9 @@ from .falcon import (
 from .gemma import (
     GaudiGemmaDecoderLayer,
     GaudiGemmaForCausalLM,
-    gaudi_gemma_attention_forward,
-    gaudi_gemma_model_forward,
+    GaudiGemmaAttention,
+    GaudiGemmaModel,
+    GaudiGemmaMLP,
 )
 from .gpt2 import (
     GaudiGPT2Attention,
@@ -171,6 +172,15 @@ from .qwen2 import (
     GaudiQwen2MLP,
     GaudiQwen2Model,
     gaudi_qwen2_rmsnorm_forward,
+)
+from .qwen2_moe import (
+    GaudiQwen2MoeAttention,
+    GaudiQwen2MoeDecoderLayer,
+    GaudiQwen2MoeForCausalLM,
+    GaudiQwen2MoeMLP,
+    GaudiQwen2MoeModel,
+    gaudi_qwen2moe_block_sparse_moe_forward,
+    gaudi_qwen2moe_rmsnorm_forward,
 )
 from .seamless_m4t import (
     gaudi_SeamlessM4TAttention_forward,
