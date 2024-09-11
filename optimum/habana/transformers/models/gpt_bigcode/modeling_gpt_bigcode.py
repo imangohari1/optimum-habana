@@ -27,7 +27,10 @@ class ModuleFusedSDPA(torch.nn.Module):
         self._hpu_kernel_fsdpa = fusedSDPA
 
     def forward(self, query, key, value, attn_mask, dropout_p, is_casual, scale, softmax_mode, enable_recompute):
-        return self._hpu_kernel_fsdpa.apply(query, key, value, attn_mask, dropout_p, is_casual, scale, softmax_mode, enable_recompute)
+        return self._hpu_kernel_fsdpa.apply(
+            query, key, value, attn_mask, dropout_p, is_casual, scale, softmax_mode, enable_recompute
+        )
+
 
 class GaudiGPTBigCodeAttention(GPTBigCodeAttention):
     def __init__(self, config, is_cross_attention=False, layer_idx=None):
@@ -68,14 +71,13 @@ class GaudiGPTBigCodeAttention(GPTBigCodeAttention):
             row_q = query_layer[:, :, s:e, :]
             row_mask = attention_mask[:, :, s:e, :]
             attn_output_partial = self.fused_scaled_dot_product_attention(
-            row_q, key_layer, value_layer, row_mask, dropout_rate, is_causal, scale, softmax_mode, enable_recompute
+                row_q, key_layer, value_layer, row_mask, dropout_rate, is_causal, scale, softmax_mode, enable_recompute
             )
             row_o_list.append(attn_output_partial)
         attn_output = torch.cat(row_o_list, dim=-2)
         if q_padding != 0:
             attn_output = attn_output[:, :, :-q_padding, :]
         return attn_output
-
 
     def apply_FusedSDPA(
         self,
@@ -170,7 +172,6 @@ class GaudiGPTBigCodeAttention(GPTBigCodeAttention):
 
         return sdpa_result, None
 
-
     def forward(
         self,
         hidden_states: torch.Tensor,
@@ -197,7 +198,9 @@ class GaudiGPTBigCodeAttention(GPTBigCodeAttention):
         - optimize KV cache
         """
         if use_flash_attention:
-            assert self.fused_scaled_dot_product_attention is not None, "Can't load HPU fused scaled dot-product attention kernel. Please retry without flash attention"
+            assert (
+                self.fused_scaled_dot_product_attention is not None
+            ), "Can't load HPU fused scaled dot-product attention kernel. Please retry without flash attention"
 
         if encoder_hidden_states is not None:
             if not hasattr(self, "q_attn") or not self.is_cross_attention:
@@ -229,7 +232,9 @@ class GaudiGPTBigCodeAttention(GPTBigCodeAttention):
             if token_idx is not None:
                 # Using out of place version of index_add_() to ensure the intermediate tensors are not lost when HPU graphs are enabled.
                 key = past_key.index_add(1, token_idx - 1, key - torch.index_select(past_key, 1, token_idx - 1))
-                value = past_value.index_add(1, token_idx - 1, value - torch.index_select(past_value, 1, token_idx - 1))
+                value = past_value.index_add(
+                    1, token_idx - 1, value - torch.index_select(past_value, 1, token_idx - 1)
+                )
             else:
                 key = torch.cat((past_key, key), dim=-2)
                 value = torch.cat((past_value, value), dim=-2)

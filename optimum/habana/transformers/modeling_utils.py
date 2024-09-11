@@ -45,11 +45,11 @@ from .models import (
     GaudiFalconForCausalLM,
     GaudiFalconMLP,
     GaudiFalconModel,
-    GaudiGemmaMLP,
     GaudiGemmaAttention,
     GaudiGemmaDecoderLayer,
-    GaudiGemmaModel,
     GaudiGemmaForCausalLM,
+    GaudiGemmaMLP,
+    GaudiGemmaModel,
     GaudiGPT2Attention,
     GaudiGPT2Block,
     GaudiGPT2DoubleHeadsModel,
@@ -361,7 +361,9 @@ def adapt_transformers_to_gaudi():
     transformers.models.gpt_bigcode.modeling_gpt_bigcode.GPTBigCodeForCausalLM = GaudiGPTBigCodeForCausalLM
     transformers.models.gpt_bigcode.modeling_gpt_bigcode.GPTBigCodeBlock.forward = gaudi_gpt_bigcode_block_forward
     transformers.models.gpt_bigcode.modeling_gpt_bigcode.GPTBigCodeModel.forward = gaudi_gpt_bigcode_model_forward
-    transformers.models.gpt_bigcode.modeling_gpt_bigcode.GPTBIGCODE_ATTENTION_CLASSES.update({"eager": GaudiGPTBigCodeAttention})
+    transformers.models.gpt_bigcode.modeling_gpt_bigcode.GPTBIGCODE_ATTENTION_CLASSES.update(
+        {"eager": GaudiGPTBigCodeAttention}
+    )
 
     # Optimization for gpt-neox generation on Gaudi
     transformers.models.gpt_neox.modeling_gpt_neox.GPTNeoXForCausalLM = GaudiGPTNeoXForCausalLM

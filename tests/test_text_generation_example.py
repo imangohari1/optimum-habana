@@ -42,7 +42,7 @@ if os.environ.get("GAUDI2_CI", "0") == "1":
             ("google/gemma-7b", 1, False, 109.70751574382221),
             ("state-spaces/mamba-130m-hf", 1536, False, 5385.511100161605),
             ("Deci/DeciLM-7B", 1, False, 120),
-            ("Qwen/Qwen1.5-7B", 4, False, 488.82855464593257),
+            ("Qwen/Qwen2-7B", 512, False, 9669.45787),
             ("Qwen/Qwen1.5-MoE-A2.7B", 1, True, 40),
         ],
         "fp8": [
@@ -167,6 +167,9 @@ def _test_text_generation(
         command += ["--use_flash_attention", "--flash_attention_causal_mask"]
 
     if "starcoder" in model_name.lower() and "starcoder2" not in model_name.lower():
+        command += ["--use_flash_attention"]
+
+    if "gemma" in model_name.lower():
         command += ["--use_flash_attention"]
 
     if "starcoder2" in model_name.lower():
