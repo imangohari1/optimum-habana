@@ -32,13 +32,20 @@ if os.environ.get("GAUDI3_CI", "0") == "1":
             ("meta-llama/Meta-Llama-3.1-70B-Instruct", 2, 250, False, 128, 2048, 4404.764),
             ("meta-llama/Meta-Llama-3.1-70B-Instruct", 2, 192, False, 2048, 128, 425.472),
             ("meta-llama/Meta-Llama-3.1-70B-Instruct", 2, 100, False, 2048, 2048, 2002.575),
-            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 2, 192, False, 2048, 2048, 2197.133)
+            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 2, 192, False, 2048, 2048, 2197.133),
             ("meta-llama/Meta-Llama-3.1-70B-Instruct", 1, 250, False, 128, 128, 2474.45),
             ("meta-llama/Meta-Llama-3.1-70B-Instruct", 1, 500, False, 128, 128, 2524.577),
             ("meta-llama/Meta-Llama-3.1-70B-Instruct", 1, 60, False, 128, 2048, 1729.745),
             ("meta-llama/Meta-Llama-3.1-70B-Instruct", 1, 25, False, 2048, 128, 227.794),
             ("meta-llama/Meta-Llama-3.1-70B-Instruct", 1, 25, False, 2048, 2048, 633.8),
-
+            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 1700, False, 128, 128, 12083.4113),
+            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 750, False, 128, 2048, 15038.2879),
+            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 100, False, 2048, 128, 1201.71348),
+            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 100, False, 2048, 2048, 4475.5929),
+            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 110, False, 2048, 2048, 4634.4509),
+            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 120, False, 2048, 2048, 5059.7662),
+            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 130, False, 2048, 2048, 5150.0967),
+            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 140, False, 2048, 2048, 5302.0584),
         ],
         "deepspeed": [],
         "torch_compile": [
