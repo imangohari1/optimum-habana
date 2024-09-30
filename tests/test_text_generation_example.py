@@ -55,6 +55,10 @@ if os.environ.get("GAUDI3_CI", "0") == "1":
             ("meta-llama/Meta-Llama-3.1-8B-Instruct", 8, 46, 1024, 1024, 7865.7892),
             ("meta-llama/Meta-Llama-3.1-8B-Instruct", 8, 96, 1024, 1024, 13650.6360),
             ("meta-llama/Meta-Llama-3.1-8B-Instruct", 8, 96, 1024, 1, 94.3492),
+            # ("meta-llama/Meta-Llama-3.1-8B-Instruct", 8, 128, 1024, 1024, 13650.6360), #Gives OOM
+            ("meta-llama/Meta-Llama-3.1-8B-Instruct", 8, 128, 1024, 1, 103.662),
+            # ("meta-llama/Meta-Llama-3.1-8B-Instruct", 2, 96, 1024, 1024, 5331.439), #Gives OOM
+            ("meta-llama/Meta-Llama-3.1-8B-Instruct", 2, 96, 1024, 1, 43.595),
             ("meta-llama/Meta-Llama-3.1-8B-Instruct", 2, 32, 1024, 1024, 3719.1248),
             ("meta-llama/Meta-Llama-3.1-8B-Instruct", 2, 64, 1024, 1024, 5331.439),
             ("meta-llama/Meta-Llama-3.1-8B-Instruct", 2, 64, 1024, 1, 45.1499),
