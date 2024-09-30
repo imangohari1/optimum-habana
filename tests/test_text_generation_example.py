@@ -51,7 +51,16 @@ if os.environ.get("GAUDI3_CI", "0") == "1":
             ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 130, False, 2048, 2048, 5150.0967),
             ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 140, False, 2048, 2048, 5302.0584),
         ],
-        "deepspeed": [],
+        "deepspeed": [
+            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 16, 1024, 1024, 983.156),
+            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 16, 1024, 1, 22.4),
+            # ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 24, 1024, 1024, 983.156), ## Gives OOM
+            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 24, 1024, 1, 22.4),
+            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 2, 8, 1024, 1024, 236.428),
+            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 2, 8, 1024, 1, 6.08),
+            # ("meta-llama/Meta-Llama-3.1-70B-Instruct", 2, 16, 1024, 1024, 236.428), ## Gives OOM
+            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 2, 16, 1024, 1, 6.01),
+        ],
         "torch_compile": [
             ("meta-llama/Llama-2-7b-hf", 102.27823420713148),
         ],
@@ -231,6 +240,7 @@ def _test_text_generation(
         f"--batch_size {batch_size}",
         "--use_kv_cache",
         f"--max_new_tokens {max_output_tokens}",
+        f"--max_input_tokens {max_input_tokens}",
     ]
 
     if "llama" in model_name.lower():
@@ -421,9 +431,22 @@ def test_text_generation_fp8(
     )
 
 
-@pytest.mark.parametrize("model_name,  world_size, batch_size, baseline", MODELS_TO_TEST["deepspeed"])
-def test_text_generation_deepspeed(model_name: str, baseline: float, world_size: int, batch_size: int, token: str):
-    _test_text_generation(model_name, baseline, token, deepspeed=True, world_size=world_size, batch_size=batch_size)
+@pytest.mark.parametrize(
+    "model_name,  world_size, batch_size, input_len, output_len, baseline", MODELS_TO_TEST["deepspeed"]
+)
+def test_text_generation_deepspeed(
+    model_name: str, baseline: float, world_size: int, batch_size: int, input_len: int, output_len: int, token: str
+):
+    _test_text_generation(
+        model_name,
+        baseline,
+        token,
+        deepspeed=True,
+        world_size=world_size,
+        batch_size=batch_size,
+        max_input_tokens=input_len,
+        max_output_tokens=output_len,
+    )
 
 
 @pytest.mark.parametrize("model_name, baseline", MODELS_TO_TEST["torch_compile"])
