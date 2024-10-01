@@ -52,24 +52,12 @@ if os.environ.get("GAUDI3_CI", "0") == "1":
             ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 140, False, 2048, 2048, 5302.0584),
         ],
         "deepspeed": [
-            ("meta-llama/Meta-Llama-3.1-8B-Instruct", 8, 46, 1024, 1024, 7865.7892),
-            ("meta-llama/Meta-Llama-3.1-8B-Instruct", 8, 96, 1024, 1024, 13650.6360),
-            ("meta-llama/Meta-Llama-3.1-8B-Instruct", 8, 96, 1024, 1, 94.3492),
-            # ("meta-llama/Meta-Llama-3.1-8B-Instruct", 8, 128, 1024, 1024, 13650.6360), #Gives OOM
-            ("meta-llama/Meta-Llama-3.1-8B-Instruct", 8, 128, 1024, 1, 103.662),
-            # ("meta-llama/Meta-Llama-3.1-8B-Instruct", 2, 96, 1024, 1024, 5331.439), #Gives OOM
-            ("meta-llama/Meta-Llama-3.1-8B-Instruct", 2, 96, 1024, 1, 43.595),
-            ("meta-llama/Meta-Llama-3.1-8B-Instruct", 2, 32, 1024, 1024, 3719.1248),
-            ("meta-llama/Meta-Llama-3.1-8B-Instruct", 2, 64, 1024, 1024, 5331.439),
-            ("meta-llama/Meta-Llama-3.1-8B-Instruct", 2, 64, 1024, 1, 45.1499),
-            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 16, 1024, 1024, 983.156),
-            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 16, 1024, 1, 22.4),
-            # ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 24, 1024, 1024, 983.156), ## Gives OOM
-            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 24, 1024, 1, 22.4),
-            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 2, 8, 1024, 1024, 236.428),
-            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 2, 8, 1024, 1, 6.08),
-            # ("meta-llama/Meta-Llama-3.1-70B-Instruct", 2, 16, 1024, 1024, 236.428), ## Gives OOM
-            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 2, 16, 1024, 1, 6.01),
+            ("meta-llama/Meta-Llama-3.1-8B-Instruct", 8, 128, 1024, 1024, 17812.10),
+            # ("meta-llama/Meta-Llama-3.1-8B-Instruct", 2, 96, 1024, 1024, 7793.73689),
+            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 96, 1024, 1024, 4195.742),
+            # ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 64, 1024, 1024, 3121.9743),
+            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 2, 16, 1024, 1024, 459.2940),
+            # ("meta-llama/Meta-Llama-3.1-70B-Instruct", 2, 64, 1024, 1024, 1300.600),
         ],
         "torch_compile": [
             ("meta-llama/Llama-2-7b-hf", 102.27823420713148),
@@ -254,7 +242,15 @@ def _test_text_generation(
     ]
 
     if "llama" in model_name.lower():
-        command += ["--trim_logits", "--attn_softmax_bf16"]
+        command += [
+            "--trim_logits",
+            "--flash_attention_recompute",
+            "--flash_attention_recompute",
+            "--bf16",
+            "--limit_hpu_graphs",
+            "--bucket_size=128",
+            "--bucket_internal",
+        ]
 
     if "falcon" in model_name.lower() or "starcoder2" in model_name.lower():
         command += ["--use_flash_attention", "--flash_attention_causal_mask"]
@@ -383,11 +379,11 @@ def _test_text_generation(
                     path_to_example_dir, "text-generation/quantization_config/maxabs_quant.json"
                 )
 
-        if any(_i in model_name for _i in ["Llama-2", "Llama-3", "Llama-3.1"]) and any(
-            _j in model_name for _j in ["70B", "70b"]
-        ):
-            command.insert(-2, "--book_source")
-            command.insert(-2, "--disk_offload")
+            if any(_i in model_name for _i in ["Llama-2", "Llama-3", "Llama-3.1"]) and any(
+                _j in model_name for _j in ["70B", "70b"]
+            ):
+                command.insert(-2, "--book_source")
+                command.insert(-2, "--disk_offload")
         command = [x for y in command for x in re.split(pattern, y) if x]
         print(f"\n\nCommand to test: {' '.join(command[:-2])}\n")
         proc = subprocess.run(command, env=env_variables)
