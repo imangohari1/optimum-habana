@@ -53,11 +53,11 @@ if os.environ.get("GAUDI3_CI", "0") == "1":
         ],
         "deepspeed": [
             ("meta-llama/Meta-Llama-3.1-8B-Instruct", 8, 128, 1024, 1024, 17812.10),
-            # ("meta-llama/Meta-Llama-3.1-8B-Instruct", 2, 96, 1024, 1024, 7793.73689),
+            ("meta-llama/Meta-Llama-3.1-8B-Instruct", 2, 96, 1024, 1024, 7793.73689),
             ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 96, 1024, 1024, 4195.742),
-            # ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 64, 1024, 1024, 3121.9743),
+            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 64, 1024, 1024, 3121.9743),
             ("meta-llama/Meta-Llama-3.1-70B-Instruct", 2, 16, 1024, 1024, 459.2940),
-            # ("meta-llama/Meta-Llama-3.1-70B-Instruct", 2, 64, 1024, 1024, 1300.600),
+            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 2, 64, 1024, 1024, 1300.600),
         ],
         "torch_compile": [
             ("meta-llama/Llama-2-7b-hf", 102.27823420713148),
