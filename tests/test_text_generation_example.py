@@ -52,10 +52,10 @@ if os.environ.get("GAUDI3_CI", "0") == "1":
             ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 140, False, 2048, 2048, 5302.0584),
         ],
         "deepspeed": [
-            ("meta-llama/Meta-Llama-3.1-8B-Instruct", 8, 192, 1024, 1024, 6189.475),
-            ("meta-llama/Meta-Llama-3.1-8B-Instruct", 8, 256, 1024, 1024, 6906.902),
             ("meta-llama/Meta-Llama-3.1-8B-Instruct", 8, 128, 1024, 1024, 17812.10),
             ("meta-llama/Meta-Llama-3.1-8B-Instruct", 2, 96, 1024, 1024, 7793.73689),
+            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 256, 1024, 1024, 6906.902),
+            ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 192, 1024, 1024, 6189.475),
             ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 96, 1024, 1024, 4195.742),
             ("meta-llama/Meta-Llama-3.1-70B-Instruct", 8, 64, 1024, 1024, 3121.9743),
             ("meta-llama/Meta-Llama-3.1-70B-Instruct", 2, 16, 1024, 1024, 459.2940),
