@@ -31,6 +31,10 @@ from .models import (
     BaichuanConfig,
     BaichuanForCausalLM,
     BaichuanTokenizer,
+    ChatGLMConfig,
+    ChatGLMForConditionalGeneration,
+    ChatGLMForSequenceClassification,
+    ChatGLMTokenizer,
     DeciLMConfig,
     DeciLMForCausalLM,
     DeepseekTokenizerFast,
@@ -709,3 +713,11 @@ def adapt_transformers_to_gaudi():
     transformers.AutoConfig.register("baichuan", BaichuanConfig)
     transformers.AutoTokenizer.register(BaichuanConfig, slow_tokenizer_class=BaichuanTokenizer)
     transformers.AutoModelForCausalLM.register(BaichuanConfig, BaichuanForCausalLM)
+
+    # Register chatglm with optimization on Gaudi
+    transformers.AutoConfig.register("chatglm", ChatGLMConfig)
+    transformers.AutoTokenizer.register(ChatGLMConfig, ChatGLMTokenizer)
+    transformers.AutoModel.register(ChatGLMConfig, ChatGLMForConditionalGeneration)
+    transformers.AutoModelForCausalLM.register(ChatGLMConfig, ChatGLMForConditionalGeneration)
+    transformers.AutoModelForSeq2SeqLM.register(ChatGLMConfig, ChatGLMForConditionalGeneration)
+    transformers.AutoModelForSequenceClassification.register(ChatGLMConfig, ChatGLMForSequenceClassification)
