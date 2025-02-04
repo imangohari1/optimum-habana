@@ -153,6 +153,7 @@ from .models import (
     GaudiQwen2VLModel,
     GaudiQwen2VLSdpaAttention,
     GaudiQwen2VLVisionBlock,
+    GaudiRobertaForCausalLM,
     GaudiStableLmAttention,
     GaudiStableLmDecoderLayer,
     GaudiStableLmForCausalLM,
@@ -386,6 +387,9 @@ def adapt_transformers_to_gaudi():
     transformers.models.bart.modeling_bart.BartForConditionalGeneration.prepare_inputs_for_generation = (
         gaudi_BartForConditionalGeneration_prepare_inputs_for_generation
     )
+
+    # Overwrite Roberta fwd
+    transformers.models.roberta.modeling_roberta.RobertaForCausalLM = GaudiRobertaForCausalLM
 
     # Optimization for BERT on Gaudi
     transformers.models.bert.modeling_bert.BertModel.forward = gaudi_BertModel_forward

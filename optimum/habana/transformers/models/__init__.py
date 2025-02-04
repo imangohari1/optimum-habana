@@ -262,6 +262,7 @@ from .qwen2_vl import (
     GaudiQwen2VLVisionBlock,
     GaudiVisionSdpaAttention,
 )
+from .roberta import GaudiRobertaForCausalLM
 from .seamless_m4t import (
     gaudi_SeamlessM4TAttention_forward,
     gaudi_SeamlessM4TCodeHifiGan_get_output_hifigan_lengths,
