@@ -776,6 +776,7 @@ class GenerationTesterMixin:
             config, inputs_dict = self.prepare_config_and_inputs_for_generate()
 
             model = model_class(config).to(torch_device).eval()
+            model.config.eos_token_id = model.config.pad_token_id
 
             beam_kwargs = self._get_beam_kwargs()
             output_generate = self._beam_search_generate(model=model, inputs_dict=inputs_dict, beam_kwargs=beam_kwargs)
@@ -795,6 +796,7 @@ class GenerationTesterMixin:
                 self.skipTest(reason="Won't fix: model with non-standard dictionary output shapes")
 
             model = model_class(config).to(torch_device).eval()
+            model.config.eos_token_id = model.config.pad_token_id
             beam_kwargs = self._get_beam_kwargs()
 
             config.is_decoder = True
@@ -2136,6 +2138,7 @@ class GenerationTesterMixin:
 
             # Skip models without explicit support
             model = model_class(config).to(torch_device).eval()
+            model.config.eos_token_id = model.config.pad_token_id
             if "inputs_embeds" not in inspect.signature(model.prepare_inputs_for_generation).parameters.keys():
                 continue
 
