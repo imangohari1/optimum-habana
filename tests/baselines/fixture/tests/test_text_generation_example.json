@@ -236,6 +236,36 @@
       "throughput": 357.46365062825083
     }
   },
+  "tests/test_text_generation_example.py::test_text_generation_bf16_1x[google/gemma-3-27b-it-1-False-True]": {
+    "gaudi2": {
+      "output": "DeepSpeed is a machine learning framework for training becomes increasingly important for the core of this day-to evaluate the ability to your machine learning on large-scale processing time in the language models.\n\n## Model performance. This is to model training deep learning, understanding. very data, can, models,\n\n### large-scale performance in AI, how 5: is of model, scale\n\nDeep learning and model understand requires a models models for language LLMs, processing large-scale,\n\n###\n\n, what 3Deeper",
+      "throughput": 30.60632131055844
+    },
+    "gaudi3": {
+      "output": "DeepSpeed is a machine learning framework for training becomes increasingly important for the core of this day-to evaluate the ability to your machine learning on large-scale processing time in the language models.\n\n## Model performance. This is to model training deep learning, understanding. very data, can, models,\n\n### large-scale performance in AI, how 5: is of model, scale\n\nDeep learning and model understand requires a models, for language LLMs, processing large-scale,\n\n###\n\n, what 3Deeper",
+      "throughput": 34.23093825305683
+    }
+  },
+  "tests/test_text_generation_example.py::test_text_generation_bf16_1x[google/gemma-3-12b-it-1-False-True]": {
+    "gaudi2": {
+      "output": "DeepSpeed is a machine learning framework for training large-learning for the open-model-framework-developer from-source and it-open a is fast-highspeed, which distribute.\n\nSpeed and performance. use to, model-based and accelerating widely tool very model, can, capable,\n\n* large- and performance enhance AI, how- and by is helpful model, scale\n\nDeepSpeed Distributed for model-large-training for large LLMIGPT Microsoft’s,\n\nDeepSpeed, use training speed use with",
+      "throughput": 54.6554042876429
+    },
+    "gaudi3": {
+      "output": "DeepSpeed is a machine learning framework for training large-learning for the open-model-framework-developer from-source and it-open a is fast-highspeed, which distribute.\n\nSpeed and performance. use to, model-based and high-scale very model, can, capable,\n\n* large- and performance enhance AI, how- and by is helpful model, scale\n\nDeepSpeed and model, AI for-learning distribute to developes, enable Microsoft’s,\n\nDeepSpeed, use training speed use with",
+      "throughput": 61.317060470304334
+    }
+  },
+  "tests/test_text_generation_example.py::test_text_generation_bf16_1x[google/gemma-3-4b-it-1-False-True]": {
+    "gaudi2": {
+      "output": "DeepSpeed is a machine learning framework for training library developed by Microsoft, offering various large-scale training solutions from Microsoft, and it leverages distributed training systems and supports deep learning, which helps to train large and performance. This is made easier to handle large dataset. It integrates with some large models. It can be large images and performance enhance training, how much and reduce time, model, scale to achieve. Speed up, requires to fine-tuning.\n\nDeepSpeed, scaling.\n\nHere are,\n\nDeepSpeed training speed training deep",
+      "throughput": 97.50532333824707
+    },
+    "gaudi3": {
+      "output": "DeepSpeed is a machine learning framework for training library developed by Microsoft, offering various large-scale training solutions from deep learning and it leverages distributed training systems and efficient training solutions, which helps to train large and performance. This is made easier to handle common applications. It integrates with some of complex models, large models and high and performance in training high-performance deep learning at scale training techniques.\n\nDeepSpeed and model, requires large-performance for large datasets. DeepSpeed is easy.\n\nDeep learning\n\nDeepSpeed training speed training with",
+      "throughput": 96.0666283519467  
+    }
+  },
   "tests/test_text_generation_example.py::test_text_generation_bf16_1x[google/gemma-2-27b-1-False-True]": {
     "gaudi2": {
       "output": "DeepSpeed is a machine learning framework that enables you to train models with trillions of parameters and beyond, using model parallelism to partition large models over multiple GPUs.\n\nThe following is a brief introduction to the DeepSpeed model parallel training.\n\n<h2>1. Introduction</h2>\n\nThe DeepSpeed model parallel training is a simple and effective way to train large models. It is a framework that enables you to train models with trillions of parameters and beyond.\n\nDeepSpeed is a distributed deep learning optimization toolkit that makes it easy and efficient",

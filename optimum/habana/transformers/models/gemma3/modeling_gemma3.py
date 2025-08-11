@@ -1,6 +1,5 @@
 # coding=utf-8
-# Copyright 2024 Google Inc. HuggingFace Inc. team. All rights reserved.
-#
+# Copyright 2024 The HuggingFace Team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +12,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""PyTorch Gemma2 model."""
+###############################################################################
+# Copyright (C) 2022-2024 Habana Labs, Ltd. an Intel Company
+###############################################################################
 
 import math
 from functools import partial
@@ -23,13 +24,14 @@ import torch
 import torch.nn.functional as F
 from transformers.cache_utils import Cache, DynamicCache, StaticCache
 from transformers.modeling_outputs import BaseModelOutputWithPast, CausalLMOutputWithPast
-from transformers.models.gemma2.modeling_gemma2 import (
-    Gemma2Attention,
-    Gemma2Config,
-    Gemma2DecoderLayer,
-    Gemma2ForCausalLM,
-    Gemma2MLP,
-    Gemma2Model,
+from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS
+from transformers.models.gemma3.modeling_gemma3 import (
+    Gemma3Attention,
+    Gemma3DecoderLayer,
+    Gemma3ForCausalLM,
+    Gemma3MLP,
+    Gemma3TextConfig,
+    Gemma3TextModel,
     apply_rotary_pos_emb,
 )
 from transformers.utils import logging
@@ -40,19 +42,12 @@ from ..modeling_all_models import KVCache, Matmul, apply_customized_rope_module
 
 
 try:
-    from habana_frameworks.torch.hpex.kernels import RotaryPosEmbeddingHelperV2 as FusedRoPE
+    from habana_frameworks.torch.hpex.kernels import RotaryPosEmbeddingHelperV2 as FusedRoPE  # noqa
 
     has_fused_rope = True
 except ImportError:
     has_fused_rope = False
     print("Not using HPU fused kernel for apply_rotary_pos_emb")
-
-
-try:
-    from habana_frameworks.torch.hpex.kernels import FusedSDPA
-except ImportError:
-    print("Not using HPU fused scaled dot-product attention kernel.")
-    FusedSDPA = None
 
 try:
     from habana_frameworks.torch.hpex.normalization import FusedRMSNorm as FusedRMSNorm
@@ -62,120 +57,122 @@ except ImportError:
     has_fused_rms_norm = False
     print("Not using HPU fused kernel for RMSNorm")
 
+try:
+    from habana_frameworks.torch.hpex.kernels import FusedSDPA
+except ImportError:
+    print("Not using HPU fused scaled dot-product attention kernel.")
+    FusedSDPA = None
+
 import habana_frameworks.torch.core as htcore
 
 
 logger = logging.get_logger(__name__)
 
-class GaudiGemma2RotaryEmbedding(GaudiRotaryEmbedding):
-    def __init__(self, config: Gemma2Config):
-        config.rope_scaling = config.rope_scaling if hasattr(config, "rope_scaling") else None
-        super().__init__(config=config)
 
-# class GaudiGemma2RotaryEmbedding(torch.nn.Module):
-#     def __init__(
-#         self,
-#         dim=None,
-#         max_position_embeddings=2048,
-#         base=10000,
-#         device=None,
-#         scaling_factor=1.0,
-#         rope_type="default",
-#         config: Optional[Gemma2Config] = None,
-#     ):
-#         super().__init__()
+class GaudiGemma3RotaryEmbedding(torch.nn.Module):
+    def __init__(
+        self,
+        dim=None,
+        max_position_embeddings=2048,
+        base=10000,
+        device=None,
+        scaling_factor=1.0,
+        rope_type="default",
+        config: Optional[Gemma3TextConfig] = None,
+    ):
+        super().__init__()
 
-#         # TODO (joao): remove the `if` below, only used for BC
-#         self.rope_kwargs = {}
-#         if config is None:
-#             logger.warning_once(
-#                 "`LlamaRotaryEmbedding` can now be fully parameterized by passing the model config through the "
-#                 "`config` argument. All other arguments will be removed in v4.45"
-#             )
-#             self.rope_kwargs = {
-#                 "rope_type": rope_type,
-#                 "factor": scaling_factor,
-#                 "dim": dim,
-#                 "base": base,
-#                 "max_position_embeddings": max_position_embeddings,
-#             }
-#             self.rope_type = rope_type
-#             self.max_seq_len_cached = max_position_embeddings
-#             self.original_max_seq_len = max_position_embeddings
-#         else:
-#             # BC: "rope_type" was originally "type"
-#             if hasattr(config, "rope_scaling") and config.rope_scaling is not None:
-#                 self.rope_type = config.rope_scaling.get("rope_type", config.rope_scaling.get("type"))
-#             else:
-#                 self.rope_type = "default"
-#             self.max_seq_len_cached = config.max_position_embeddings
-#             self.original_max_seq_len = config.max_position_embeddings
+        # TODO (joao): remove the `if` below, only used for BC
+        self.rope_kwargs = {}
+        if config is None:
+            logger.warning_once(
+                "`LlamaRotaryEmbedding` can now be fully parameterized by passing the model config through the "
+                "`config` argument. All other arguments will be removed in v4.45"
+            )
+            self.rope_kwargs = {
+                "rope_type": rope_type,
+                "factor": scaling_factor,
+                "dim": dim,
+                "base": base,
+                "max_position_embeddings": max_position_embeddings,
+            }
+            self.rope_type = rope_type
+            self.max_seq_len_cached = max_position_embeddings
+            self.original_max_seq_len = max_position_embeddings
+        else:
+            # BC: "rope_type" was originally "type"
+            if hasattr(config, "rope_scaling") and config.rope_scaling is not None:
+                self.rope_type = config.rope_scaling.get("rope_type", config.rope_scaling.get("type"))
+            else:
+                self.rope_type = "default"
+            self.max_seq_len_cached = config.max_position_embeddings
+            self.original_max_seq_len = config.max_position_embeddings
 
-#         self.config = config
-#         self.rope_init_fn = ROPE_INIT_FUNCTIONS[self.rope_type]
+        self.config = config
+        self.rope_init_fn = ROPE_INIT_FUNCTIONS[self.rope_type]
 
-#         inv_freq, self.attention_scaling = self.rope_init_fn(self.config, device, **self.rope_kwargs)
-#         self.register_buffer("inv_freq", inv_freq, persistent=False)
-#         self.original_inv_freq = self.inv_freq
+        inv_freq, self.attention_scaling = self.rope_init_fn(self.config, device, **self.rope_kwargs)
+        self.register_buffer("inv_freq", inv_freq, persistent=False)
+        self.original_inv_freq = self.inv_freq
 
-#         # Build here to make `torch.jit.trace` work.
-#         self._set_cos_sin_cache(
-#             seq_len=self.max_seq_len_cached, device=self.inv_freq.device, dtype=torch.get_default_dtype()
-#         )
+        # Build here to make `torch.jit.trace` work.
+        self._set_cos_sin_cache(
+            seq_len=self.max_seq_len_cached, device=self.inv_freq.device, dtype=torch.get_default_dtype()
+        )
 
-#     def _set_cos_sin_cache(self, seq_len, device, dtype):
-#         self.max_seq_len_cached = seq_len
-#         t = torch.arange(self.max_seq_len_cached, device=device, dtype=self.inv_freq.dtype)
+    def _set_cos_sin_cache(self, seq_len, device, dtype):
+        self.max_seq_len_cached = seq_len
+        t = torch.arange(self.max_seq_len_cached, device=device, dtype=self.inv_freq.dtype)
 
-#         freqs = torch.outer(t, self.inv_freq)
-#         # Different from paper, but it uses a different permutation in order to obtain the same calculation
-#         emb = torch.cat((freqs, freqs), dim=-1)
-#         self.register_buffer("_cos_cached", emb.cos().to(dtype), persistent=False)
-#         self.register_buffer("_sin_cached", emb.sin().to(dtype), persistent=False)
+        freqs = torch.outer(t, self.inv_freq)
+        # Different from paper, but it uses a different permutation in order to obtain the same calculation
+        emb = torch.cat((freqs, freqs), dim=-1)
+        self.register_buffer("_cos_cached", emb.cos().to(dtype), persistent=False)
+        self.register_buffer("_sin_cached", emb.sin().to(dtype), persistent=False)
 
-#     def _dynamic_frequency_update(self, seq_len, device):
-#         """
-#         dynamic RoPE layers should recompute `inv_freq` in the following situations:
-#         1 - growing beyond the cached sequence length (allow scaling)
-#         2 - the current sequence length is in the original scale (avoid losing precision with small sequences)
-#         """
-#         # seq_len = torch.max(position_ids) + 1
-#         if seq_len > self.max_seq_len_cached:  # growth
-#             inv_freq, self.attention_scaling = self.rope_init_fn(
-#                 self.config, device, seq_len=seq_len, **self.rope_kwargs
-#             )
-#             self.register_buffer("inv_freq", inv_freq, persistent=False)  # TODO joao: may break with compilation
-#             self.max_seq_len_cached = seq_len
+    def _dynamic_frequency_update(self, seq_len, device):
+        """
+        dynamic RoPE layers should recompute `inv_freq` in the following situations:
+        1 - growing beyond the cached sequence length (allow scaling)
+        2 - the current sequence length is in the original scale (avoid losing precision with small sequences)
+        """
+        # seq_len = torch.max(position_ids) + 1
+        if seq_len > self.max_seq_len_cached:  # growth
+            inv_freq, self.attention_scaling = self.rope_init_fn(
+                self.config, device, seq_len=seq_len, **self.rope_kwargs
+            )
+            self.register_buffer("inv_freq", inv_freq, persistent=False)  # TODO joao: may break with compilation
+            self.max_seq_len_cached = seq_len
 
-#         if seq_len < self.original_max_seq_len and self.max_seq_len_cached > self.original_max_seq_len:  # reset
-#             # This .to() is needed if the model has been moved to a device after being initialized (because
-#             # the buffer is automatically moved, but not the original copy)
-#             self.original_inv_freq = self.original_inv_freq.to(device)
-#             self.register_buffer("inv_freq", self.original_inv_freq, persistent=False)
-#             self.max_seq_len_cached = self.original_max_seq_len
+        if seq_len < self.original_max_seq_len and self.max_seq_len_cached > self.original_max_seq_len:  # reset
+            # This .to() is needed if the model has been moved to a device after being initialized (because
+            # the buffer is automatically moved, but not the original copy)
+            self.original_inv_freq = self.original_inv_freq.to(device)
+            self.register_buffer("inv_freq", self.original_inv_freq, persistent=False)
+            self.max_seq_len_cached = self.original_max_seq_len
 
-#     @torch.no_grad()
-#     def forward(self, x, seq_len=None):
-#         # x: [bs, num_attention_heads, seq_len, head_size]
-#         if "dynamic" in self.rope_type:
-#             self._dynamic_frequency_update(seq_len, device=x.device)
+    @torch.no_grad()
+    def forward(self, x, seq_len=None):
+        # x: [bs, num_attention_heads, seq_len, head_size]
+        if "dynamic" in self.rope_type:
+            self._dynamic_frequency_update(seq_len, device=x.device)
 
-#         if seq_len > self.max_seq_len_cached:
-#             self._set_cos_sin_cache(seq_len=seq_len, device=x.device, dtype=x.dtype)
+        if seq_len > self.max_seq_len_cached:
+            self._set_cos_sin_cache(seq_len=seq_len, device=x.device, dtype=x.dtype)
 
-#         if self.attention_scaling == 1.0:
-#             return (
-#                 self._cos_cached[:seq_len].to(dtype=x.dtype),
-#                 self._sin_cached[:seq_len].to(dtype=x.dtype),
-#             )
-#         else:
-#             return (
-#                 self._cos_cached[:seq_len].to(dtype=x.dtype) * self.attention_scaling,
-#                 self._sin_cached[:seq_len].to(dtype=x.dtype) * self.attention_scaling,
-#             )
+        if self.attention_scaling == 1.0:
+            return (
+                self._cos_cached[:seq_len].to(dtype=x.dtype),
+                self._sin_cached[:seq_len].to(dtype=x.dtype),
+            )
+        else:
+            return (
+                self._cos_cached[:seq_len].to(dtype=x.dtype) * self.attention_scaling,
+                self._sin_cached[:seq_len].to(dtype=x.dtype) * self.attention_scaling,
+            )
 
 
-def gaudi_gemma2_repeat_kv(
+def gaudi_gemma3_repeat_kv(
     query_states: torch.Tensor,
     key_states: torch.Tensor,
     value_states: torch.Tensor,
@@ -201,55 +198,6 @@ def gaudi_gemma2_repeat_kv(
     return query_states, key_states, value_states, attention_mask
 
 
-# class Matmul(torch.nn.Module):
-#     def __init__(self):
-#         super().__init__()
-
-#     def forward(self, x, y):
-#         return torch.matmul(x, y)
-
-
-# class KVCache(torch.nn.Module):
-#     def __init__(self):
-#         super(KVCache, self).__init__()
-#         self.cache = None
-#         self.inp_seq_len = -1
-
-#     def allocate(self, inp_seq_len, dtype, device, shape):
-#         if self.cache is None or self.cache.shape != shape:
-#             self.inp_seq_len = inp_seq_len
-#             self.cache = torch.zeros(shape, dtype=dtype, device=device)
-#         else:
-#             assert self.inp_seq_len == inp_seq_len, (
-#                 f"inp_seq_len must be the same. self.inp_seq_len:{self.inp_seq_len} inp_seq_len:{inp_seq_len}"
-#             )
-#             self.cache.fill_(0)
-
-#     def update(self, prev, cur, dim, idx, inp_seq_len):
-#         orig_cur = cur
-#         if prev.shape == cur.shape:
-#             prev.copy_(cur)
-#             return orig_cur
-#         if cur.shape[2] > 1 and cur.shape[2] <= prev.shape[2]:
-#             # Initialize
-#             prev[:, :, :inp_seq_len, :].copy_(cur)
-#             return orig_cur
-#         assert cur.shape[2] == 1, f"Cannot update kv-cache. Unsupported shapes. prev:{prev.shape} cur:{cur.shape}"
-#         if idx is not None:
-#             prev.index_copy_(dim, idx - 1, cur)
-#             return prev
-#         else:
-#             return torch.cat((prev, cur), dim=dim)
-
-#     def get_shape(self):
-#         if self.cache is None:
-#             return None
-#         return self.cache.shape
-
-#     def forward(self, cur, dim, idx):
-#         return self.update(self.cache, cur, dim, idx, self.inp_seq_len)
-
-
 def gaudi_eager_attention_forward(
     module: torch.nn.Module,
     query: torch.Tensor,
@@ -266,7 +214,7 @@ def gaudi_eager_attention_forward(
     if scaling is None:
         scaling = module.head_dim**-0.5
 
-    query_states, key_states, value_states, attention_mask = gaudi_gemma2_repeat_kv(
+    query_states, key_states, value_states, attention_mask = gaudi_gemma3_repeat_kv(
         query, key, value, attention_mask, module.num_key_value_groups
     )
 
@@ -289,12 +237,12 @@ def gaudi_eager_attention_forward(
     return attn_output, attn_weights
 
 
-class GaudiGemma2Attention(Gemma2Attention):
-    def __init__(self, config: Gemma2Config, layer_idx: Optional[int] = None):
+class GaudiGemma3Attention(Gemma3Attention):
+    def __init__(self, config: Gemma3TextConfig, layer_idx: Optional[int] = None):
         super().__init__(config, layer_idx)
 
-        self.rotary_emb = GaudiGemma2RotaryEmbedding(config=self.config)
-        # self.rotary_emb = GaudiGemma2RotaryEmbedding(
+        self.rotary_emb = GaudiRotaryEmbedding(config=self.config)
+        # self.rotary_emb = GaudiGemma3RotaryEmbedding(
         #     self.head_dim,
         #     max_position_embeddings=config.max_position_embeddings,
         #     base=config.rope_theta,
@@ -365,7 +313,7 @@ class GaudiGemma2Attention(Gemma2Attention):
     def pre_attn_forward(
         self,
         hidden_states: torch.Tensor,
-        position_embeddings: Tuple[torch.Tensor, torch.Tensor],
+        position_embeddings: torch.Tensor,
         attention_mask: Optional[torch.Tensor],
         past_key_value: Optional[Cache] = None,
         use_cache: bool = False,
@@ -379,7 +327,7 @@ class GaudiGemma2Attention(Gemma2Attention):
         flash_attention_fast_softmax: Optional[bool] = False,
         cache_idx: int = None,
         **kwargs,
-    ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
+    ) -> tuple[torch.Tensor, Optional[torch.Tensor], Optional[tuple[torch.Tensor]]]:
         """
         The only differences are:
         - add new args token_idx
@@ -396,6 +344,9 @@ class GaudiGemma2Attention(Gemma2Attention):
         query_states = self.q_proj(hidden_states).view(hidden_shape).transpose(1, 2)
         key_states = self.k_proj(hidden_states).view(hidden_shape).transpose(1, 2)
         value_states = self.v_proj(hidden_states).view(hidden_shape).transpose(1, 2)
+
+        query_states = self.q_norm(query_states)
+        key_states = self.k_norm(key_states)
 
         kv_seq_len = key_states.shape[-2]
         if past_key_value is not None:
@@ -471,6 +422,9 @@ class GaudiGemma2Attention(Gemma2Attention):
                             )
 
         else:
+            if attention_mask is not None:
+                # backwards compatibility
+                attention_mask = attention_mask.to(query_states)
             attn_output, attn_weights = gaudi_eager_attention_forward(
                 self,
                 query_states,
@@ -480,7 +434,6 @@ class GaudiGemma2Attention(Gemma2Attention):
                 dropout=self.attention_dropout if self.training else 0.0,
                 scaling=self.scaling,
                 sliding_window=self.sliding_window,
-                softcap=self.attn_logit_softcapping,
                 input_shape=input_shape,
             )
 
@@ -505,7 +458,7 @@ class GaudiGemma2Attention(Gemma2Attention):
         return attn_output
 
 
-class GaudiGemma2MLP(Gemma2MLP):
+class GaudiGemma3MLP(Gemma3MLP):
     def pre_mlp_forward(self, x):
         inputs = self.act_fn(self.gate_proj(x)) * self.up_proj(x)
         output = self.down_proj(inputs)
@@ -521,11 +474,11 @@ class GaudiGemma2MLP(Gemma2MLP):
         return x
 
 
-class GaudiGemma2DecoderLayer(Gemma2DecoderLayer):
-    def __init__(self, config: Gemma2Config, layer_idx: int):
+class GaudiGemma3DecoderLayer(Gemma3DecoderLayer):
+    def __init__(self, config: Gemma3TextConfig, layer_idx: int):
         super().__init__(config, layer_idx)
-        self.self_attn = GaudiGemma2Attention(config, layer_idx)
-        self.mlp = GaudiGemma2MLP(config)
+        self.self_attn = GaudiGemma3Attention(config, layer_idx)
+        self.mlp = GaudiGemma3MLP(config)
 
     def allocate_kv_cache(self, batch_size, max_seq_len, inp_seq_len):
         self.self_attn.allocate_kv_cache(batch_size, max_seq_len, inp_seq_len)
@@ -555,7 +508,7 @@ class GaudiGemma2DecoderLayer(Gemma2DecoderLayer):
         flash_attention_fast_softmax: Optional[bool] = False,
         cache_idx: int = None,
         **kwargs,
-    ) -> Tuple[torch.FloatTensor, Optional[Tuple[torch.FloatTensor, torch.FloatTensor]]]:
+    ) -> tuple[torch.FloatTensor, Optional[tuple[torch.FloatTensor, torch.FloatTensor]]]:
         hidden_states = self.input_layernorm(hidden_states)
 
         hidden_states, attn_weights, present_key_value = self.self_attn.pre_attn_forward(
@@ -582,7 +535,8 @@ class GaudiGemma2DecoderLayer(Gemma2DecoderLayer):
     def forward(
         self,
         hidden_states: torch.Tensor,
-        position_embeddings: Tuple[torch.Tensor, torch.Tensor] = None,
+        position_embeddings_global: torch.Tensor,
+        position_embeddings_local: torch.Tensor,
         attention_mask: Optional[torch.Tensor] = None,
         position_ids: Optional[torch.LongTensor] = None,
         past_key_value: Optional[Cache] = None,
@@ -599,13 +553,19 @@ class GaudiGemma2DecoderLayer(Gemma2DecoderLayer):
         flash_attention_fast_softmax: Optional[bool] = False,
         cache_idx: int = None,
         **kwargs,
-    ) -> Tuple[torch.FloatTensor, Optional[Tuple[torch.FloatTensor, torch.FloatTensor]]]:
+    ) -> tuple[torch.FloatTensor, Optional[tuple[torch.FloatTensor, torch.FloatTensor]]]:
         """
-        Copied from GemmaDecoderLayer.forward: https://github.com/huggingface/transformers/blob/v4.38.1/src/transformers/models/gemma/modeling_gemma.py
+        Copied from Gemma3DecoderLayer.forward: https://github.com/huggingface/transformers/blob/main/src/transformers/models/gemma3/modeling_gemma3.py#L361
         The only differences are:
         - add new args token_idx
         """
+
         residual = hidden_states
+        # apply global RoPE to non-sliding layer only
+        if self.self_attn.is_sliding:
+            position_embeddings = position_embeddings_local
+        else:
+            position_embeddings = position_embeddings_global
         hidden_states, self_attn_weights, present_key_value = self.pre_attn(
             hidden_states,
             position_embeddings,
@@ -673,7 +633,7 @@ class GaudiGemma2DecoderLayer(Gemma2DecoderLayer):
         return hidden_states
 
 
-class GaudiGemma2Model(Gemma2Model):
+class GaudiGemma3TextModel(Gemma3TextModel):
     # used in Trainer to avoid passing `loss_kwargs` to model forward
     accepts_loss_kwargs = False
 
@@ -743,7 +703,7 @@ class GaudiGemma2Model(Gemma2Model):
         if inputs_embeds is None:
             inputs_embeds = self.embed_tokens(input_ids)
 
-        ignore_cache_position = True  # Ignoring cache position for HPU
+        ignore_cache_position = False  # Ignoring cache position for HPU
         use_new_cache = False  # Ignoring new Cache path for HPU
 
         past_seen_tokens = 0
@@ -766,7 +726,9 @@ class GaudiGemma2Model(Gemma2Model):
             if cache_position is None:
                 past_seen_tokens = past_key_values.get_seq_length() if past_key_values is not None else 0
                 cache_position = torch.arange(
-                    past_seen_tokens, past_seen_tokens + inputs_embeds.shape[1], device=inputs_embeds.device
+                    past_seen_tokens,
+                    past_seen_tokens + inputs_embeds.shape[1],
+                    device=inputs_embeds.device,
                 )
             if position_ids is None and cache_position:
                 position_ids = cache_position.unsqueeze(0)
@@ -787,16 +749,19 @@ class GaudiGemma2Model(Gemma2Model):
                 past_seen_tokens,
             )
         else:
-            causal_mask = self._update_causal_mask(attention_mask, inputs_embeds, cache_position, past_key_values, output_attentions)
-
+            causal_mask = self._update_causal_mask(
+                attention_mask,
+                inputs_embeds,
+                cache_position,
+                past_key_values,
+                output_attentions,
+            )
         # embed positions
         hidden_states = inputs_embeds
 
         # create position embeddings to be shared across the decoder layers
-        position_embeddings = None
-
-        normalizer = torch.tensor(self.config.hidden_size**0.5, dtype=hidden_states.dtype, device=inputs_embeds.device)
-        hidden_states = hidden_states * normalizer
+        position_embeddings_global = self.rotary_emb(hidden_states, position_ids)
+        position_embeddings_local = self.rotary_emb_local(hidden_states, position_ids)
 
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
@@ -821,7 +786,8 @@ class GaudiGemma2Model(Gemma2Model):
                 layer_outputs = self._gradient_checkpointing_func(
                     partial(decoder_layer.__call__, **kwargs),
                     hidden_states,
-                    position_embeddings,
+                    position_embeddings_global,
+                    position_embeddings_local,
                     causal_mask,
                     position_ids,
                     past_key_values,
@@ -841,7 +807,8 @@ class GaudiGemma2Model(Gemma2Model):
             else:
                 layer_outputs = decoder_layer(
                     hidden_states,
-                    position_embeddings=position_embeddings,
+                    position_embeddings_global=position_embeddings_global,
+                    position_embeddings_local=position_embeddings_local,
                     attention_mask=causal_mask,
                     position_ids=position_ids,
                     past_key_value=None if past_key_values is None else past_key_values[layer_idx],
@@ -886,7 +853,7 @@ class GaudiGemma2Model(Gemma2Model):
         )
 
 
-class GaudiGemma2ForCausalLM(Gemma2ForCausalLM):
+class GaudiGemma3ForCausalLM(Gemma3ForCausalLM):
     def allocate_kv_cache(self, batch_size, max_seq_len, inp_seq_len):
         self.model.allocate_kv_cache(batch_size, max_seq_len, inp_seq_len)
 
@@ -922,7 +889,7 @@ class GaudiGemma2ForCausalLM(Gemma2ForCausalLM):
         **loss_kwargs,
     ) -> CausalLMOutputWithPast:
         """
-        Inherits from GemmaForCausalLM: https://github.com/huggingface/transformers/blob/v4.38.1/src/transformers/models/gemma/modeling_gemma.py
+        Inherits from Gemma3ForCausalLM: https://github.com/huggingface/transformers/blob/main/src/transformers/models/gemma3/modeling_gemma3.py#L606
         The only differences are:
         - add new args token_idx
         """
@@ -1068,27 +1035,6 @@ class GaudiGemma2ForCausalLM(Gemma2ForCausalLM):
         )
         return model_inputs
 
-
-# def apply_customized_rope(q, k, cos, sin, position_ids):
-#     if q.device.type == "hpu" and has_fused_rope:
-#         # TODO: remove `.clone()` when it is fixed in SynapseAI
-#         if k.dtype == torch.bfloat16:
-#             return FusedRoPE.apply(
-#                 q, cos.unsqueeze(0).unsqueeze(0).clone(), sin.unsqueeze(0).unsqueeze(0).clone(), position_ids
-#             ), FusedRoPE.apply(
-#                 k,
-#                 cos.unsqueeze(0).unsqueeze(0).clone().to(torch.bfloat16),
-#                 sin.unsqueeze(0).unsqueeze(0).clone().to(torch.bfloat16),
-#                 position_ids,
-#             )
-#         return FusedRoPE.apply(
-#             q, cos.unsqueeze(0).unsqueeze(0).clone(), sin.unsqueeze(0).unsqueeze(0).clone(), position_ids
-#         ), FusedRoPE.apply(
-#             k, cos.unsqueeze(0).unsqueeze(0).clone(), sin.unsqueeze(0).unsqueeze(0).clone(), position_ids
-#         )
-#     else:
-#         # keep the same implementation as Transformers v4.37.2
-#         return apply_rotary_pos_emb(q, k, cos[position_ids], sin[position_ids])
 
 def apply_customized_rope(q, k, cos, sin, position_ids, training=True):
     if q.device.type == "hpu" and has_fused_rope:
