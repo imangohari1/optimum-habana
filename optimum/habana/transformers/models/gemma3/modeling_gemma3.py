@@ -427,9 +427,6 @@ class GaudiGemma3Attention(Gemma3Attention):
                             )
 
         else:
-            if attention_mask is not None:
-                # backwards compatibility
-                attention_mask = attention_mask.to(query_states)
             attn_output, attn_weights = gaudi_eager_attention_forward(
                 self,
                 query_states,
@@ -708,7 +705,7 @@ class GaudiGemma3TextModel(Gemma3TextModel):
         if inputs_embeds is None:
             inputs_embeds = self.embed_tokens(input_ids)
 
-        ignore_cache_position = False  # Ignoring cache position for HPU
+        ignore_cache_position = True  # Ignoring cache position for HPU
         use_new_cache = False  # Ignoring new Cache path for HPU
 
         past_seen_tokens = 0
@@ -1104,40 +1101,6 @@ class GaudiGemma3ForConditionalGeneration(Gemma3ForConditionalGeneration):
         if inputs_embeds is None:
             inputs_embeds = self.get_input_embeddings()(llm_input_ids)
 
-        ignore_cache_position = False  # Ignoring cache position for HPU
-        use_new_cache = False  # Ignoring new Cache path for HPU
-
-        past_seen_tokens = 0
-        # if past_key_values is not None:
-        #     past_seen_tokens = past_key_values[0][0].shape[2]
-
-        if past_key_values is not None and use_cache:  # kept for BC (cache positions)
-            if reuse_cache:
-                if isinstance(past_key_values[0][0], torch.Tensor):
-                    past_seen_tokens = past_key_values[0][0].shape[2]
-                else:
-                    past_seen_tokens = past_key_values[0][0][2]
-            else:
-                if use_new_cache:
-                    if not isinstance(past_key_values, StaticCache):
-                        past_key_values = DynamicCache.from_legacy_cache(past_key_values)
-                    past_seen_tokens = past_key_values.get_seq_length()
-                else:
-                    past_seen_tokens = past_key_values[0][0].shape[2]
-
-        if ignore_cache_position is False:
-            if cache_position is None:
-                past_seen_tokens = past_key_values.get_seq_length() if past_key_values is not None else 0
-                cache_position = torch.arange(
-                    past_seen_tokens, past_seen_tokens + inputs_embeds.shape[1], device=inputs_embeds.device
-                )
-        else:
-            if position_ids is None:
-                position_ids = torch.arange(
-                    past_seen_tokens, seq_length + past_seen_tokens, dtype=torch.long, device=inputs_embeds.device
-                )
-            cache_position = None
-
         # Merge text and images
         if pixel_values is not None:
             image_features = self.get_image_features(pixel_values)
@@ -1168,20 +1131,8 @@ class GaudiGemma3ForConditionalGeneration(Gemma3ForConditionalGeneration):
             )
             labels = torch.where(input_ids == self.pad_token_id, self.config.ignore_index, labels)
 
-        # breakpoint()
-        if ignore_cache_position:
-            causal_mask = _gaudi_prepare_4d_causal_attention_mask(
-                attention_mask,
-                input_ids.shape if input_ids is not None else (batch_size, seq_length),
-                inputs_embeds,
-                past_seen_tokens,
-            )
-        else:
-            causal_mask = self._update_causal_mask(
-                attention_mask, token_type_ids, past_key_values, cache_position, inputs_embeds, is_training
-            )
         outputs: CausalLMOutputWithPast = self.language_model(
-            attention_mask=causal_mask,
+            attention_mask=attention_mask,
             position_ids=position_ids,
             past_key_values=past_key_values,
             inputs_embeds=inputs_embeds,
