@@ -40,7 +40,7 @@ from ..modeling_all_models import KVCache, Matmul, apply_customized_rope_module
 
 
 try:
-    from habana_frameworks.torch.hpex.kernels import RotaryPosEmbeddingHelperV2 as FusedRoPE
+    from habana_frameworks.torch.hpex.kernels import RotaryPosEmbeddingHelperV2 as FusedRoPE  # noqa
 
     has_fused_rope = True
 except ImportError:
@@ -67,10 +67,12 @@ import habana_frameworks.torch.core as htcore
 
 logger = logging.get_logger(__name__)
 
+
 class GaudiGemma2RotaryEmbedding(GaudiRotaryEmbedding):
     def __init__(self, config: Gemma2Config):
         config.rope_scaling = config.rope_scaling if hasattr(config, "rope_scaling") else None
         super().__init__(config=config)
+
 
 # class GaudiGemma2RotaryEmbedding(torch.nn.Module):
 #     def __init__(
@@ -787,7 +789,9 @@ class GaudiGemma2Model(Gemma2Model):
                 past_seen_tokens,
             )
         else:
-            causal_mask = self._update_causal_mask(attention_mask, inputs_embeds, cache_position, past_key_values, output_attentions)
+            causal_mask = self._update_causal_mask(
+                attention_mask, inputs_embeds, cache_position, past_key_values, output_attentions
+            )
 
         # embed positions
         hidden_states = inputs_embeds
@@ -1089,6 +1093,7 @@ class GaudiGemma2ForCausalLM(Gemma2ForCausalLM):
 #     else:
 #         # keep the same implementation as Transformers v4.37.2
 #         return apply_rotary_pos_emb(q, k, cos[position_ids], sin[position_ids])
+
 
 def apply_customized_rope(q, k, cos, sin, position_ids, training=True):
     if q.device.type == "hpu" and has_fused_rope:

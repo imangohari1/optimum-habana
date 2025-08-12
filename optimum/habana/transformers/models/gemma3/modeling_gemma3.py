@@ -21,25 +21,30 @@ from functools import partial
 from typing import List, Optional, Tuple, Union
 
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 from transformers.cache_utils import Cache, DynamicCache, StaticCache
 from transformers.modeling_outputs import BaseModelOutputWithPast, CausalLMOutputWithPast
 from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS
 from transformers.models.gemma3.modeling_gemma3 import (
     Gemma3Attention,
+    Gemma3CausalLMOutputWithPast,
     Gemma3DecoderLayer,
     Gemma3ForCausalLM,
+    Gemma3ForConditionalGeneration,
     Gemma3MLP,
     Gemma3TextConfig,
     Gemma3TextModel,
     apply_rotary_pos_emb,
 )
-from transformers.utils import logging
+from transformers.utils import is_torchdynamo_compiling, logging
 
 from ...modeling_attn_mask_utils import _gaudi_prepare_4d_causal_attention_mask
 from ...modeling_rope_utils import GaudiRotaryEmbedding
 from ..modeling_all_models import KVCache, Matmul, apply_customized_rope_module
 
+
+# pdb.set_trace()
 
 try:
     from habana_frameworks.torch.hpex.kernels import RotaryPosEmbeddingHelperV2 as FusedRoPE  # noqa
@@ -722,6 +727,9 @@ class GaudiGemma3TextModel(Gemma3TextModel):
                 else:
                     past_seen_tokens = past_key_values[0][0].shape[2]
 
+        # if past_key_values is not None:
+        #     past_seen_tokens = past_key_values[0][0].shape[2]
+
         if ignore_cache_position is False:
             if cache_position is None:
                 past_seen_tokens = past_key_values.get_seq_length() if past_key_values is not None else 0
@@ -762,6 +770,7 @@ class GaudiGemma3TextModel(Gemma3TextModel):
         # create position embeddings to be shared across the decoder layers
         position_embeddings_global = self.rotary_emb(hidden_states, position_ids)
         position_embeddings_local = self.rotary_emb_local(hidden_states, position_ids)
+        # print(f"text-fwd: position_embeddings_local: {position_embeddings_local[0].shape} causal_mask: {causal_mask.shape}")
 
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
@@ -833,7 +842,7 @@ class GaudiGemma3TextModel(Gemma3TextModel):
 
             if output_attentions:
                 all_self_attns += (layer_outputs[1],)
-
+        # breakpoint()
         hidden_states = self.norm(hidden_states)
 
         # add hidden states from the last decoder layer
@@ -1034,6 +1043,197 @@ class GaudiGemma3ForCausalLM(Gemma3ForCausalLM):
             }
         )
         return model_inputs
+
+
+class GaudiGemma3ForConditionalGeneration(Gemma3ForConditionalGeneration):
+    def forward(
+        self,
+        input_ids: Optional[torch.LongTensor] = None,
+        pixel_values: Optional[torch.FloatTensor] = None,
+        attention_mask: Optional[torch.Tensor] = None,
+        position_ids: Optional[torch.LongTensor] = None,
+        past_key_values: Optional[Union[List[torch.FloatTensor], Cache]] = None,
+        token_type_ids: Optional[torch.LongTensor] = None,
+        cache_position: Optional[torch.LongTensor] = None,
+        inputs_embeds: Optional[torch.FloatTensor] = None,
+        labels: Optional[torch.LongTensor] = None,
+        use_cache: Optional[bool] = None,
+        output_attentions: Optional[bool] = None,
+        output_hidden_states: Optional[bool] = None,
+        logits_to_keep: Union[int, torch.Tensor] = 0,
+        token_idx: Optional[torch.Tensor] = None,
+        trim_logits: Optional[bool] = False,
+        attn_softmax_bf16: Optional[bool] = False,
+        reuse_cache: Optional[bool] = False,
+        use_flash_attention: Optional[bool] = False,
+        flash_attention_recompute: Optional[bool] = False,
+        flash_attention_causal_mask: Optional[bool] = False,
+        flash_attention_fast_softmax: Optional[bool] = False,
+        cache_idx: int = None,
+        lazy_mode: Optional[bool] = True,
+        **kwargs,
+    ) -> Union[Tuple, Gemma3CausalLMOutputWithPast]:
+        if (input_ids is None) ^ (inputs_embeds is not None):
+            raise ValueError("You must specify exactly one of input_ids or inputs_embeds")
+
+        output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
+        output_hidden_states = (
+            output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
+        )
+        use_cache = use_cache if use_cache is not None else self.config.use_cache
+
+        is_training = token_type_ids is not None and labels is not None
+
+        if input_ids is not None and inputs_embeds is not None:
+            raise ValueError("You must specify exactly one of input_ids or inputs_embeds")
+        elif input_ids is not None:
+            batch_size, seq_length = input_ids.shape[:2]
+        elif inputs_embeds is not None:
+            batch_size, seq_length = inputs_embeds.shape[:2]
+        else:
+            raise ValueError("You have to specify either input_ids or inputs_embeds")
+
+        # Replace image id woth PAD if the image token if OOV, to avoid index-errors
+        if input_ids is not None and self.config.image_token_index >= self.vocab_size:
+            special_image_mask = input_ids == self.config.image_token_index
+            llm_input_ids = input_ids.clone()
+            llm_input_ids[special_image_mask] = 0
+        else:
+            llm_input_ids = input_ids
+
+        if inputs_embeds is None:
+            inputs_embeds = self.get_input_embeddings()(llm_input_ids)
+
+        ignore_cache_position = False  # Ignoring cache position for HPU
+        use_new_cache = False  # Ignoring new Cache path for HPU
+
+        past_seen_tokens = 0
+        # if past_key_values is not None:
+        #     past_seen_tokens = past_key_values[0][0].shape[2]
+
+        if past_key_values is not None and use_cache:  # kept for BC (cache positions)
+            if reuse_cache:
+                if isinstance(past_key_values[0][0], torch.Tensor):
+                    past_seen_tokens = past_key_values[0][0].shape[2]
+                else:
+                    past_seen_tokens = past_key_values[0][0][2]
+            else:
+                if use_new_cache:
+                    if not isinstance(past_key_values, StaticCache):
+                        past_key_values = DynamicCache.from_legacy_cache(past_key_values)
+                    past_seen_tokens = past_key_values.get_seq_length()
+                else:
+                    past_seen_tokens = past_key_values[0][0].shape[2]
+
+        if ignore_cache_position is False:
+            if cache_position is None:
+                past_seen_tokens = past_key_values.get_seq_length() if past_key_values is not None else 0
+                cache_position = torch.arange(
+                    past_seen_tokens, past_seen_tokens + inputs_embeds.shape[1], device=inputs_embeds.device
+                )
+        else:
+            if position_ids is None:
+                position_ids = torch.arange(
+                    past_seen_tokens, seq_length + past_seen_tokens, dtype=torch.long, device=inputs_embeds.device
+                )
+            cache_position = None
+
+        # Merge text and images
+        if pixel_values is not None:
+            image_features = self.get_image_features(pixel_values)
+
+            if input_ids is None:
+                special_image_mask = inputs_embeds == self.get_input_embeddings()(
+                    torch.tensor(self.config.image_token_index, dtype=torch.long, device=inputs_embeds.device)
+                )
+            else:
+                special_image_mask = (input_ids == self.config.image_token_index).unsqueeze(-1)
+                special_image_mask = special_image_mask.expand_as(inputs_embeds).to(inputs_embeds.device)
+
+            if not is_torchdynamo_compiling() and inputs_embeds[special_image_mask].numel() != image_features.numel():
+                image_tokens_in_text = (special_image_mask).sum(dim=1).sum(dim=0)[0]
+                raise ValueError(
+                    f"Number of images does not match number of special image tokens in the input text. "
+                    f"Got {image_tokens_in_text} image tokens in the text but {image_features.shape[0] * image_features.shape[1]} "
+                    "tokens from image embeddings."
+                )
+            image_features = image_features.to(inputs_embeds.device, inputs_embeds.dtype)
+            inputs_embeds = inputs_embeds.masked_scatter(special_image_mask, image_features)
+
+        # mask out pad-token-ids in labels for BC
+        if labels is not None and self.pad_token_id in labels:
+            logger.warning_once(
+                "`labels` contains `pad_token_id` which will be masked with `config.ignore_index`. "
+                "You have to mask out `pad_token_id` when preparing `labels`, this behavior will be removed in v.4.46.",
+            )
+            labels = torch.where(input_ids == self.pad_token_id, self.config.ignore_index, labels)
+
+        # breakpoint()
+        if ignore_cache_position:
+            causal_mask = _gaudi_prepare_4d_causal_attention_mask(
+                attention_mask,
+                input_ids.shape if input_ids is not None else (batch_size, seq_length),
+                inputs_embeds,
+                past_seen_tokens,
+            )
+        else:
+            causal_mask = self._update_causal_mask(
+                attention_mask, token_type_ids, past_key_values, cache_position, inputs_embeds, is_training
+            )
+        outputs: CausalLMOutputWithPast = self.language_model(
+            attention_mask=causal_mask,
+            position_ids=position_ids,
+            past_key_values=past_key_values,
+            inputs_embeds=inputs_embeds,
+            use_cache=use_cache,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            cache_position=cache_position,
+            logits_to_keep=logits_to_keep,
+            token_idx=token_idx,
+            trim_logits=trim_logits,
+            attn_softmax_bf16=attn_softmax_bf16,
+            reuse_cache=reuse_cache,
+            use_flash_attention=use_flash_attention,
+            flash_attention_recompute=flash_attention_recompute,
+            flash_attention_causal_mask=flash_attention_causal_mask,
+            flash_attention_fast_softmax=flash_attention_fast_softmax,
+            cache_idx=cache_idx,
+            lazy_mode=lazy_mode,
+            **kwargs,
+        )
+
+        logits = outputs.logits
+        loss = None
+        if labels is not None:
+            # Upcast to float if we need to compute the loss to avoid potential precision issues
+            logits = logits.float()
+            shift_logits = logits[..., :-1, :]
+            shift_labels = labels[..., 1:]
+            if attention_mask is not None:
+                # we use the input attention mask to shift the logits and labels, because it is 2D.
+                # we also crop attn mask in case it is longer, which happens in PrefixTuning with peft
+                shift_attention_mask = attention_mask[:, -shift_logits.shape[1] :].to(logits.device)
+                shift_logits = shift_logits[shift_attention_mask.to(logits.device) != 0].contiguous()
+                shift_labels = shift_labels[shift_attention_mask.to(shift_labels.device) != 0].contiguous()
+            else:
+                shift_logits = shift_logits.contiguous()
+                shift_labels = shift_labels.contiguous()
+            # Flatten the tokens
+            loss_fct = nn.CrossEntropyLoss()
+
+            flat_logits = shift_logits.view(-1, self.config.text_config.vocab_size)
+            flat_labels = shift_labels.view(-1).to(shift_logits.device)
+            loss = loss_fct(flat_logits, flat_labels)
+
+        return Gemma3CausalLMOutputWithPast(
+            loss=loss,
+            logits=logits,
+            past_key_values=outputs.past_key_values,
+            hidden_states=outputs.hidden_states,
+            attentions=outputs.attentions,
+            image_hidden_states=image_features if pixel_values is not None else None,
+        )
 
 
 def apply_customized_rope(q, k, cos, sin, position_ids, training=True):
