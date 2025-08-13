@@ -607,6 +607,35 @@ class GaudiGemma2DecoderLayer(Gemma2DecoderLayer):
         The only differences are:
         - add new args token_idx
         """
+        if self.is_sliding and attention_mask is not None:  # efficient SDPA and no padding
+            if last_cache_position is None:
+                last_cache_position = 0
+                if attention_mask is not None:
+                    # In case a 4d mask is passed directly without using `generate`, we have to rely on cache_position
+                    # It will break dynamo tracing but there are no way around it (and it should never happen in practice)
+                    last_cache_position = attention_mask.shape[-1] if attention_mask.dim() == 2 else 0
+            # In prefill, we may be larger than sliding window
+            # effective_seq_len = max(seq_length, self.sliding_window)
+            effective_seq_len = self.sliding_window
+            # For FA2, the mask is 2D and is of shape [bs, processed_tokens] (not [bs, max_cache_len]),
+            # thus we must slice from the right (at most `effective_seq_len` elements)
+            if self.config._attn_implementation == "flash_attention_2":
+                attention_mask = attention_mask[:, -effective_seq_len:]
+            # Otherwise, the mask is 4D of shape [bs, 1, query_len, max_cache_len] thus we must slice
+            # from the left, with an offset if we are beyond the sliding window
+            else:
+                min_dtype = torch.finfo(attention_mask.dtype).min
+                sliding_window_mask = torch.tril(
+                    torch.ones_like(attention_mask, dtype=torch.bool), diagonal=-self.sliding_window
+                )
+                attention_mask = torch.where(sliding_window_mask, min_dtype, attention_mask)
+                # In case we are beyond the sliding window, we need to correctly offset the mask slicing
+                # `last_cache_position` is equivalent to `cache_position[-1]` but without breaking dynamo
+                # breakpoint()
+                offset = last_cache_position - effective_seq_len
+                # Should only be used when beyond the sliding window (i.e. offset > 0)
+                offset = max(0, offset)
+                attention_mask = attention_mask[:, :, :, offset : offset + effective_seq_len]
         residual = hidden_states
         hidden_states, self_attn_weights, present_key_value = self.pre_attn(
             hidden_states,
