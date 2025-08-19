@@ -367,7 +367,7 @@ class GaudiGemma3Attention(Gemma3Attention):
                     kv_seq_len = past_key_value[0].shape[-2]
 
         cos, sin = self.rotary_emb(value_states, seq_len=kv_seq_len)
-        query_states, key_states = apply_customized_rope(query_states, key_states, cos, sin, kwargs["position_ids"])
+        query_states, key_states = apply_customized_rope(query_states, key_states, cos, sin, kwargs["position_ids"], self.training)
 
         if use_cache:
             # reuse k, v, self_attention

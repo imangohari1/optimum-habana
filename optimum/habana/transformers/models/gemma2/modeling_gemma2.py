@@ -413,7 +413,7 @@ class GaudiGemma2Attention(Gemma2Attention):
                     kv_seq_len = past_key_value[0].shape[-2]
 
         cos, sin = self.rotary_emb(value_states, seq_len=kv_seq_len)
-        query_states, key_states = apply_customized_rope(query_states, key_states, cos, sin, kwargs["position_ids"])
+        query_states, key_states = apply_customized_rope(query_states, key_states, cos, sin, kwargs["position_ids"], self.training)
 
         if use_cache:
             # reuse k, v, self_attention
@@ -612,7 +612,7 @@ class GaudiGemma2DecoderLayer(Gemma2DecoderLayer):
         """
         # breakpoint()
         # sliding_window mask from here: https://github.com/huggingface/transformers/blob/v4.51.3/src/transformers/models/gemma2/modeling_gemma2.py#L295-L315 with token_idx vs cache_position
-        if self.is_sliding and attention_mask is not None and token_idx is not None:
+        if False and self.is_sliding and attention_mask is not None and token_idx is not None:
             """
             Here are the GPU shapes with input prompt "Write me a poem about Machine Learning." (so about 10 tokens) :
                 gem2 decoder fwd: attention_mask.shape torch.Size([1, 1, 9, 108]) last_cache_position 9 cache_position.shape torch.Size([9])
@@ -915,19 +915,15 @@ class GaudiGemma2Model(Gemma2Model):
         # HPU specific mask generation
         # breakpoint()
         if ignore_cache_position:
+            """
+            here if I pass sliding_window=self.config.sliding_window,  to _gaudi_prepare_4d_causal_attention_mask it leads to RuntimeError: The size of tensor a (106) must match the size of tensor b (105) at non-singleton dimension 3
+            """
             causal_mask = _gaudi_prepare_4d_causal_attention_mask(
                 attention_mask,
                 input_ids.shape if input_ids is not None else (batch_size, seq_length),
                 inputs_embeds,
                 past_seen_tokens,
             )
-            # causal_mask_local = _gaudi_prepare_4d_causal_attention_mask(
-            #     attention_mask,
-            #     input_ids.shape if input_ids is not None else (batch_size, seq_length),
-            #     inputs_embeds,
-            #     past_seen_tokens,
-            #     sliding_window=self.config.sliding_window,
-            # )
         else:
             causal_mask = self._update_causal_mask(
                 attention_mask, inputs_embeds, cache_position, past_key_values, output_attentions
