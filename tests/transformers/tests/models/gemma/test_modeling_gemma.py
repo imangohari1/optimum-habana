@@ -299,7 +299,7 @@ class GemmaModelTest(ModelTesterMixin, GenerationTesterMixin, unittest.TestCase)
             (self.model_tester.batch_size, self.model_tester.seq_length, self.model_tester.num_labels),
         )
 
-    @unittest.skip(reason="This test is not supported for Gemma")
+    @unittest.skip(reason="This test fails on Gaudi. skipping for now")
     def test_attention_outputs(self):
         pass
     
