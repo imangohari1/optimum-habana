@@ -20,7 +20,6 @@ import pytest
 from packaging import version
 from parameterized import parameterized
 from pytest import mark
-
 from transformers import AutoModelForCausalLM, AutoTokenizer, Gemma2Config, is_torch_available, pipeline
 from transformers.generation.configuration_utils import GenerationConfig
 from transformers.testing_utils import (
@@ -32,10 +31,11 @@ from transformers.testing_utils import (
     tooslow,
 )
 
+from optimum.habana.transformers.modeling_utils import adapt_transformers_to_gaudi
+
 from ...models.gemma.test_modeling_gemma import GemmaModelTest, GemmaModelTester
 from ...test_configuration_common import ConfigTester
 
-from optimum.habana.transformers.modeling_utils import adapt_transformers_to_gaudi
 
 torch_device = "hpu"
 adapt_transformers_to_gaudi()
@@ -43,7 +43,6 @@ adapt_transformers_to_gaudi()
 
 if is_torch_available():
     import torch
-
     from transformers import (
         Gemma2ForCausalLM,
         Gemma2ForSequenceClassification,
@@ -475,7 +474,7 @@ class Gemma2ModelTest(GemmaModelTest, unittest.TestCase):
     @unittest.skip(reason="SDPA can't dispatch on flash due to unsupported head dims")
     def test_sdpa_can_dispatch_on_flash(self):
         pass
-    
+
     @unittest.skip(
         reason="HybridCache can't be gathered because it is not iterable. Adding a simple iter and dumping `distributed_iterator`"
         " as in Dynamic Cache doesnt work. NOTE: @gante all cache objects would need better compatibility with multi gpu setting"

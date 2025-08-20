@@ -7,6 +7,7 @@ from transformers import AutoProcessor, Gemma3ForConditionalGeneration
 
 from optimum.habana.transformers.modeling_utils import adapt_transformers_to_gaudi
 
+
 torch_device = "hpu"
 adapt_transformers_to_gaudi()
 

@@ -19,7 +19,6 @@ import unittest
 
 import pytest
 from packaging import version
-
 from transformers import AutoModelForCausalLM, AutoTokenizer, GemmaConfig, is_torch_available
 from transformers.generation.configuration_utils import GenerationConfig
 from transformers.testing_utils import (
@@ -30,8 +29,8 @@ from transformers.testing_utils import (
     require_read_token,
     require_torch,
     require_torch_accelerator,
-    require_torch_sdpa,
     require_torch_gpu,
+    require_torch_sdpa,
     slow,
 )
 
@@ -41,12 +40,12 @@ from ...generation.test_utils import GenerationTesterMixin
 from ...test_configuration_common import ConfigTester
 from ...test_modeling_common import ModelTesterMixin, ids_tensor
 
+
 torch_device = "hpu"
 adapt_transformers_to_gaudi()
 
 if is_torch_available():
     import torch
-
     from transformers import (
         GemmaForCausalLM,
         GemmaForSequenceClassification,
@@ -302,7 +301,7 @@ class GemmaModelTest(ModelTesterMixin, GenerationTesterMixin, unittest.TestCase)
     @unittest.skip(reason="This test fails on Gaudi. skipping for now")
     def test_attention_outputs(self):
         pass
-    
+
     @unittest.skip(reason="Gemma uses GQA on all models so the KV cache is a non standard format")
     def test_past_key_values_format(self):
         pass
