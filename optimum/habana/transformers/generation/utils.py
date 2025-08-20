@@ -108,6 +108,7 @@ MODELS_OPTIMIZED_WITH_STATIC_SHAPES = [
     "gemma",
     "gemma2",
     "gemma3",
+    "gemma3_text",
     "blip_text_model",
     "seamless_m4t",
     "starcoder2",
