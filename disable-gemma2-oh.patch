@@ -1,0 +1,76 @@
+diff --git a/optimum/habana/transformers/generation/utils.py b/optimum/habana/transformers/generation/utils.py
+index a8b1858e..6615680c 100755
+--- a/optimum/habana/transformers/generation/utils.py
++++ b/optimum/habana/transformers/generation/utils.py
+@@ -106,7 +106,7 @@ MODELS_OPTIMIZED_WITH_STATIC_SHAPES = [
+     "phi",
+     "mixtral",
+     "gemma",
+-    "gemma2",
++    # "gemma2",
+     "blip_text_model",
+     "seamless_m4t",
+     "starcoder2",
+@@ -1340,7 +1340,7 @@ class GaudiGenerationMixin(GenerationMixin):
+                 "starcoder2",
+                 "qwen2_moe",
+                 "gemma",
+-                "gemma2",
++                # "gemma2",
+                 "baichuan",
+                 "chatglm",
+                 "deepseek_v2",
+@@ -1348,7 +1348,7 @@ class GaudiGenerationMixin(GenerationMixin):
+                 "qwen3",
+                 "qwen3_moe",
+             ], (
+-                "reuse_cache only supported by llama, mistral, falcon, mixtral, phi, qwen2, qwen2_moe, qwen3, qwen3_moe, gemma, gemma2, starcoder2, baichuan, chatglm and deepseek_v2 at the moment"
++                "reuse_cache only supported by llama, mistral, falcon, mixtral, phi, qwen2, qwen2_moe, qwen3, qwen3_moe, gemma, starcoder2, baichuan, chatglm and deepseek_v2 at the moment"
+             )
+             if not generation_config.bucket_internal:
+                 assert generation_config.bucket_size <= 0, (
+@@ -1357,8 +1357,8 @@ class GaudiGenerationMixin(GenerationMixin):
+             else:
+                 assert generation_config.bucket_size >= 0, "please set valid bucket_size to use bucket_internal"
+ 
+-        if self.config.model_type == "gemma2":
+-            generation_config.cache_implementation = None
++        # if self.config.model_type == "gemma2":
++        #     generation_config.cache_implementation = None
+ 
+         if generation_config.static_shapes:
+             # Pad inputs to have static shapes during generation, this gives better performance than dynamic shapes on HPUs
+@@ -1558,7 +1558,7 @@ class GaudiGenerationMixin(GenerationMixin):
+                 "gptj",
+                 "starcoder2",
+                 "gemma",
+-                "gemma2",
++                # "gemma2",
+                 "qwen2_moe",
+                 "baichuan",
+                 "deepseek_v2",
+diff --git a/optimum/habana/transformers/modeling_utils.py b/optimum/habana/transformers/modeling_utils.py
+index c541bfdf..c7b32809 100644
+--- a/optimum/habana/transformers/modeling_utils.py
++++ b/optimum/habana/transformers/modeling_utils.py
+@@ -609,13 +609,13 @@ def adapt_transformers_to_gaudi():
+     transformers.models.gemma.modeling_gemma.GemmaDecoderLayer = GaudiGemmaDecoderLayer
+     transformers.models.gemma.modeling_gemma.GemmaModel = GaudiGemmaModel
+ 
+-    # Optimization for gemma2 on Gaudi
+-    transformers.models.gemma2.modeling_gemma2.Gemma2ForCausalLM = GaudiGemma2ForCausalLM
+-    transformers.models.gemma2.modeling_gemma2.Gemma2MLP = GaudiGemma2MLP
+-    transformers.models.gemma2.modeling_gemma2.Gemma2Attention = GaudiGemma2Attention
+-    transformers.models.gemma2.modeling_gemma2.Gemma2DecoderLayer = GaudiGemma2DecoderLayer
+-    transformers.models.gemma2.modeling_gemma2.Gemma2Model = GaudiGemma2Model
+-    transformers.models.gemma2.modeling_gemma2.Gemma2RotaryEmbedding = GaudiGemma2RotaryEmbedding
++    # # Optimization for gemma2 on Gaudi
++    # transformers.models.gemma2.modeling_gemma2.Gemma2ForCausalLM = GaudiGemma2ForCausalLM
++    # transformers.models.gemma2.modeling_gemma2.Gemma2MLP = GaudiGemma2MLP
++    # transformers.models.gemma2.modeling_gemma2.Gemma2Attention = GaudiGemma2Attention
++    # transformers.models.gemma2.modeling_gemma2.Gemma2DecoderLayer = GaudiGemma2DecoderLayer
++    # transformers.models.gemma2.modeling_gemma2.Gemma2Model = GaudiGemma2Model
++    # transformers.models.gemma2.modeling_gemma2.Gemma2RotaryEmbedding = GaudiGemma2RotaryEmbedding
+ 
+     # Optimization for blip Text model on Gaudi
+     transformers.models.blip.BlipTextModel.forward = gaudi_BlipTextModel_forward
