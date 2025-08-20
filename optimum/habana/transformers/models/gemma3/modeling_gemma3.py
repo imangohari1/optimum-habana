@@ -15,7 +15,7 @@
 ###############################################################################
 # Copyright (C) 2022-2024 Habana Labs, Ltd. an Intel Company
 ###############################################################################
-
+import copy
 import math
 from functools import partial
 from typing import List, Optional, Tuple, Union
@@ -74,6 +74,7 @@ import habana_frameworks.torch.core as htcore
 logger = logging.get_logger(__name__)
 
 
+<<<<<<< HEAD
 # class GaudiGemma3RotaryEmbedding(torch.nn.Module):
 #     def __init__(
 #         self,
@@ -175,6 +176,12 @@ logger = logging.get_logger(__name__)
 #                 self._cos_cached[:seq_len].to(dtype=x.dtype) * self.attention_scaling,
 #                 self._sin_cached[:seq_len].to(dtype=x.dtype) * self.attention_scaling,
 #             )
+=======
+class GaudiGemma3RotaryEmbedding(GaudiRotaryEmbedding):
+    def __init__(self, config: Gemma3TextConfig):
+        config.rope_scaling = config.rope_scaling if hasattr(config, "rope_scaling") else None
+        super().__init__(config=config)
+>>>>>>> 64b501b85191e78ca8536f611770ba5d54cf7560
 
 
 def gaudi_gemma3_repeat_kv(
@@ -246,8 +253,17 @@ class GaudiGemma3Attention(Gemma3Attention):
     def __init__(self, config: Gemma3TextConfig, layer_idx: Optional[int] = None):
         super().__init__(config, layer_idx)
 
+<<<<<<< HEAD
         self.rotary_emb = GaudiRotaryEmbedding(config=self.config)
+=======
+        self.rotary_emb = GaudiGemma3RotaryEmbedding(config=self.config)
+>>>>>>> 64b501b85191e78ca8536f611770ba5d54cf7560
 
+        config = copy.deepcopy(config)
+        config.rope_theta = config.rope_local_base_freq
+        config.rope_scaling = {"rope_type": "default"}
+        self.rotary_emb_local = GaudiGemma3RotaryEmbedding(config=config)
+        
         self.matmul_qk = Matmul()
         self.matmul_av = Matmul()
         self.k_cache = KVCache()
@@ -361,8 +377,12 @@ class GaudiGemma3Attention(Gemma3Attention):
                     kv_seq_len = past_key_value[0][-2]
                 else:
                     kv_seq_len = past_key_value[0].shape[-2]
-
-        cos, sin = self.rotary_emb(value_states, seq_len=kv_seq_len)
+        # Using alternative approach for cos,sin computation due to HPU graph compile issues
+        # cos, sin = position_embeddings
+        if self.is_sliding:
+            cos, sin = self.rotary_emb_local(value_states, seq_len=kv_seq_len)
+        else:
+            cos, sin = self.rotary_emb(value_states, seq_len=kv_seq_len)
         query_states, key_states = apply_customized_rope(query_states, key_states, cos, sin, kwargs["position_ids"], self.training)
 
         if use_cache:
@@ -455,7 +475,7 @@ class GaudiGemma3Attention(Gemma3Attention):
 
     def post_attn_forward(self, attn_output):
         if hasattr(self.o_proj, "post_all_reduce"):
-            self.o_proj.post_all_reduce(attn_output)
+            return self.o_proj.post_all_reduce(attn_output)
         return attn_output
 
 
@@ -572,17 +592,17 @@ class GaudiGemma3DecoderLayer(Gemma3DecoderLayer):
         else:
             position_embeddings = position_embeddings_global
         hidden_states, self_attn_weights, present_key_value = self.pre_attn(
-            hidden_states,
-            position_embeddings,
-            attention_mask,
-            position_ids,
-            past_key_value,
-            output_attentions,
-            use_cache,
-            cache_position,
-            token_idx,
-            attn_softmax_bf16,
-            reuse_cache,
+            hidden_states=hidden_states,
+            position_embeddings=position_embeddings,
+            attention_mask=attention_mask,
+            position_ids=position_ids,
+            past_key_value=past_key_value,
+            output_attentions=output_attentions,
+            use_cache=use_cache,
+            cache_position=cache_position,
+            token_idx=token_idx,
+            attn_softmax_bf16=attn_softmax_bf16,
+            reuse_cache=reuse_cache,
             use_flash_attention=use_flash_attention,
             flash_attention_recompute=flash_attention_recompute,
             flash_attention_causal_mask=flash_attention_causal_mask,
@@ -620,7 +640,6 @@ class GaudiGemma3DecoderLayer(Gemma3DecoderLayer):
             residual.add_(hidden_states)
             hidden_states = residual
 
-        residual = hidden_states
         hidden_states = self.pre_feedforward_layernorm(hidden_states)
         hidden_states = self.mlp.pre_mlp_forward(hidden_states)
         return hidden_states, residual
