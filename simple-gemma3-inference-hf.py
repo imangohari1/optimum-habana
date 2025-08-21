@@ -1,62 +1,124 @@
 # pip install accelerate
 
+import argparse
+import os
 import time
 
 import torch
-from transformers import AutoProcessor, Gemma3ForConditionalGeneration
-
-from optimum.habana.transformers.modeling_utils import adapt_transformers_to_gaudi
+from transformers import AutoProcessor
 
 
-torch_device = "hpu"
-adapt_transformers_to_gaudi()
+def main():
+    parser = argparse.ArgumentParser(description="A script demonstrating argparse usage.")
 
-model_id = "google/gemma-3-4b-it"
-# model_id = "models/gemma-3-4b-it"
+    # Add model
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="google/gemma-3-4b-it",
+        help="name or local path the gemma3 model to use (e.g., google/gemma-3-4b-it).",
+    )
+    # Add --device argument
+    parser.add_argument("--device", type=str, default="hpu", help='Specify the device to use (e.g., "hpu", "gpu").')
 
-model = Gemma3ForConditionalGeneration.from_pretrained(model_id, device_map=torch_device).eval()
+    # Add --iteration argument
+    parser.add_argument("--iteration", type=int, default=5, help="Specify the number of iterations to run.")
 
-processor = AutoProcessor.from_pretrained(model_id)
+    # Add --use-graphs argument (boolean flag)
+    parser.add_argument(
+        "--use-hpu-graphs", action="store_true", help="Enable or disable the use of HPU graphs (hpu specific)."
+    )
 
-messages = [
-    {
-        "role": "system",
-        "content": [{"type": "text", "text": "You are a helpful assistant."}],
-    },
-    {
-        "role": "user",
-        "content": [
-            {
-                "type": "image",
-                "image": "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/bee.jpg",
-            },
-            {"type": "text", "text": "Describe this image in detail."},
-        ],
-    },
-]
+    args = parser.parse_args()
 
-inputs = processor.apply_chat_template(
-    messages,
-    add_generation_prompt=True,
-    tokenize=True,
-    return_dict=True,
-    return_tensors="pt",
-).to(model.device, dtype=torch.bfloat16)
+    for arg_name, arg_value in vars(args).items():
+        print(f"{arg_name}: {arg_value}")
 
-input_len = inputs["input_ids"].shape[-1]
+    ## load the proper conditional generation
 
-start_time = time.perf_counter()
-with torch.inference_mode():
-    generation = model.generate(**inputs, max_new_tokens=100, do_sample=False)
-    generation = generation[0][input_len:]
-elapsed_time = time.perf_counter() - start_time
+    model_id = args.model
+    # model_id = "google/gemma-3-4b-it"
+    # model_id = "models/gemma-3-4b-it"
+    kwargs = {}
+    if args.device == "hpu":
+        try:
+            from optimum.habana.transformers.modeling_utils import adapt_transformers_to_gaudi
+            from optimum.habana.transformers.models.gemma3.modeling_gemma3 import GaudiGemma3ForConditionalGeneration
+        except Exception as error:
+            print(f"failed on loading OH Gemma3: {error}")
+            exit
 
-print(f"Generation Elapsed Time: {elapsed_time} seconds")
+        torch_device = "hpu"
+        adapt_transformers_to_gaudi()
+        model = GaudiGemma3ForConditionalGeneration.from_pretrained(model_id, device_map=torch_device).eval()
+
+        ## generation keys
+        kwargs["lazy_mode"] = False
+        if os.getenv("PT_HPU_LAZY_MODE") == "1":
+            kwargs["lazy_mode"] = True
+        if kwargs["lazy_mode"]:
+            kwargs["hpu_graphs"] = args.use_hpu_graphs
+    else:
+        try:
+            from transformers.models.gemma3.modeling_gemma3 import Gemma3ForConditionalGeneration
+        except Exception as error:
+            print(f"failed on loading HF Gemma3: {error}")
+            exit
+        torch_device = "cuda"
+        model = Gemma3ForConditionalGeneration.from_pretrained(model_id, device_map=torch_device).eval()
+
+    processor = AutoProcessor.from_pretrained(model_id)
+
+    messages = [
+        {
+            "role": "system",
+            "content": [{"type": "text", "text": "You are a helpful assistant."}],
+        },
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "image",
+                    "image": "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/bee.jpg",
+                },
+                {"type": "text", "text": "Describe this image in detail."},
+            ],
+        },
+    ]
+
+    inputs = processor.apply_chat_template(
+        messages,
+        add_generation_prompt=True,
+        tokenize=True,
+        return_dict=True,
+        return_tensors="pt",
+    ).to(model.device, dtype=torch.bfloat16)
+
+    input_len = inputs["input_ids"].shape[-1]
+
+    for iter in range(0, args.iteration):
+        start_time = time.perf_counter()
+        with torch.inference_mode():
+            generation = model.generate(
+                **inputs,
+                max_new_tokens=100,
+                do_sample=False,
+                **kwargs,
+                # lazy_mode=True,
+                # hpu_graphs=True,
+            )
+            generation = generation[0][input_len:]
+        elapsed_time = time.perf_counter() - start_time
+
+        print(f"iteration {iter}: Generation Elapsed Time: {elapsed_time} seconds")
+
+    decoded = processor.decode(generation, skip_special_tokens=True)
+    print(decoded)
+
+    # **Overall Impression:** The image is a close-up shot of a vibrant garden scene,
+    # focusing on a cluster of pink cosmos flowers and a busy bumblebee.
+    # It has a slightly soft, natural feel, likely captured in daylight.
 
 
-decoded = processor.decode(generation, skip_special_tokens=True)
-print(decoded)
-
-# **Overall Impression:** The image is a close-up shot of a vibrant garden scene,
-# focusing on a cluster of pink cosmos flowers and a busy bumblebee.
-# It has a slightly soft, natural feel, likely captured in daylight.
+if __name__ == "__main__":
+    main()

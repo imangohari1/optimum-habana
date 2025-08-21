@@ -75,7 +75,7 @@ logger = logging.get_logger(__name__)
 
 class GaudiGemma3RotaryEmbedding(GaudiRotaryEmbedding):
     def __init__(self, config: Gemma3TextConfig):
-        config.rope_scaling = config.rope_scaling if hasattr(config, "rope_scaling") else None
+        config.rope_scaling = getattr(config, "rope_scaling", None)
         super().__init__(config=config)
 
 
@@ -345,8 +345,6 @@ class GaudiGemma3Attention(Gemma3Attention):
                 sliding_window=self.sliding_window,
                 input_shape=input_shape,
             )
-            if q_len == 1:
-                breakpoint()
 
         attn_output = attn_output.transpose(1, 2).contiguous()
         attn_output = attn_output.reshape(*input_shape, -1).contiguous()
