@@ -1,0 +1,124 @@
+diff --git a/optimum/habana/transformers/models/gemma3/modeling_gemma3.py b/optimum/habana/transformers/models/gemma3/modeling_gemma3.py
+index a5a8c1fb..e3e99eb4 100755
+--- a/optimum/habana/transformers/models/gemma3/modeling_gemma3.py
++++ b/optimum/habana/transformers/models/gemma3/modeling_gemma3.py
+@@ -267,7 +267,7 @@ class GaudiGemma3Attention(Gemma3Attention):
+                 else:
+                     kv_seq_len = past_key_value[0].shape[-2]
+         # Using alternative approach for cos,sin computation due to HPU graph compile issues
+-        # cos, sin = position_embeddings
++
+         if self.is_sliding:
+             cos, sin = self.rotary_emb_local(value_states, seq_len=kv_seq_len)
+         else:
+@@ -275,6 +275,14 @@ class GaudiGemma3Attention(Gemma3Attention):
+         query_states, key_states = apply_customized_rope(
+             query_states, key_states, cos, sin, kwargs["position_ids"], self.training
+         )
++        """
++        step 0: cos, sin = position_embeddings is a source of inaccuracy. we are adding here to debug:
++        cmd: PT_HPU_LAZY_MODE=0 python examples/text-generation/run_generation.py --model_name_or_path google/gemma-3-270m-it  --max_new_tokens 512 --do_sample --prompt "DeepSpeed is a machine learning framework" --sdp_on_bf16
++        """
++        """
++        step 4: remove the cos, sin = position_embeddings for this step to recover the accuracy
++        """
++        # cos, sin = position_embeddings
+ 
+         if use_cache:
+             # reuse k, v, self_attention
+@@ -473,12 +481,84 @@ class GaudiGemma3DecoderLayer(Gemma3DecoderLayer):
+         """
+         # if past_key_value is not None:
+         #     breakpoint()
++
++        # """
++        # step 1: to replace this whole section with the HF code: https://github.com/huggingface/transformers/blob/7d88f57fc6892b9b3d0092c53e27ae033f1bebc8/src/transformers/models/gemma3/modeling_gemma3.py#L381-L414
++        # results: if we replace this, the accuracy is recovered (since we are not calling GaudiAttention)
++        # """
++
++        # residual = hidden_states
++
++        # # hidden_states = self.input_layernorm(hidden_states)  ## when calling HF self_attn here (in step 1) this is needed. in step 2 when calling OH pre_attn this is NOT needed.
++
++        # # apply global RoPE to non-sliding layer only
++        # if self.self_attn.is_sliding:
++        #     position_embeddings = position_embeddings_local
++        # else:
++        #     position_embeddings = position_embeddings_global
++
++        # """
++        # step 2: to replace the self_attn with OH self.pre_attn
++        # results: if we replace this, the accuracy is not good (since we are calling GaudiAttention)... aka the issue is in attention
++        # """
++        # # hidden_states, self_attn_weights = self.self_attn(
++        # hidden_states, self_attn_weights, present_key_value = self.pre_attn(
++        #     hidden_states=hidden_states,
++        #     position_embeddings=position_embeddings,
++        #     attention_mask=attention_mask,
++        #     position_ids=position_ids,
++        #     past_key_value=past_key_value,
++        #     output_attentions=output_attentions,
++        #     use_cache=use_cache,
++        #     cache_position=cache_position,
++        #     **kwargs,
++        # )
++        # hidden_states = self.post_attention_layernorm(hidden_states)
++        # hidden_states = residual + hidden_states
++
++        # residual = hidden_states
++        # hidden_states = self.pre_feedforward_layernorm(hidden_states)
++        # hidden_states = self.mlp(hidden_states)
++        # hidden_states = self.post_feedforward_layernorm(hidden_states)
++        # hidden_states = residual + hidden_states
++
++        # outputs = (hidden_states,)
++
++        # if output_attentions:
++        #     outputs += (self_attn_weights,)
++
++        # return outputs
++
+         residual = hidden_states
+         # apply global RoPE to non-sliding layer only
+         if self.self_attn.is_sliding:
+             position_embeddings = position_embeddings_local
+         else:
+             position_embeddings = position_embeddings_global
++
++        # """
++        # step 3: to just use the the self_attn with rest of OH mlp etc.
++        # notes: disable the if reuse_cache. and add back the hidden_states = self.input_layernorm(hidden_states)
++        # results: if we get here, the accuracy is good since we are not using the attention. so the issue is not MLP or decoder layer... it is in attention.
++        # """
++        # hidden_states = self.input_layernorm(hidden_states)  ## when calling HF self_attn here (in step 1) this is needed. in step 2 when calling OH pre_attn this is NOT needed.
++        # hidden_states, self_attn_weights = self.self_attn(
++        # # hidden_states, self_attn_weights, present_key_value = self.pre_attn(
++        #     hidden_states=hidden_states,
++        #     position_embeddings=position_embeddings,
++        #     attention_mask=attention_mask,
++        #     position_ids=position_ids,
++        #     past_key_value=past_key_value,
++        #     output_attentions=output_attentions,
++        #     use_cache=use_cache,
++        #     cache_position=cache_position,
++        #     **kwargs,
++        # )
++
++        """
++        step 4: we add this section back and remove the accuracy error source aka cos, sin = postion_embeddings.
++        results: running OH/Gaudi attetentin, mlp without source of accracy, so the results are good.
++        """
+         hidden_states, self_attn_weights, present_key_value = self.pre_attn(
+             hidden_states=hidden_states,
+             position_embeddings=position_embeddings,
+@@ -512,6 +592,10 @@ class GaudiGemma3DecoderLayer(Gemma3DecoderLayer):
+         if output_attentions:
+             outputs += (self_attn_weights,)
+ 
++        """
++        step 3: this is disabled in this step.
++        step 4: this is enabled back
++        """
+         if use_cache:
+             outputs += (present_key_value,)
+ 
