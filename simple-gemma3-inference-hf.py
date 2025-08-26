@@ -28,6 +28,11 @@ def main():
     parser.add_argument(
         "--use-hpu-graphs", action="store_true", help="Enable or disable the use of HPU graphs (hpu specific)."
     )
+    parser.add_argument(
+        "--bf16",
+        action="store_true",
+        help="Whether to perform generation in bf16 precision.",
+    )
 
     args = parser.parse_args()
 
@@ -39,6 +44,10 @@ def main():
     model_id = args.model
     # model_id = "google/gemma-3-4b-it"
     # model_id = "models/gemma-3-4b-it"
+    dtype = torch.float32
+    if args.bf16:
+        dtype = torch.bfloat16
+
     kwargs = {}
     if args.device == "hpu":
         try:
@@ -50,7 +59,9 @@ def main():
 
         torch_device = "hpu"
         adapt_transformers_to_gaudi()
-        model = GaudiGemma3ForConditionalGeneration.from_pretrained(model_id, device_map=torch_device).eval()
+        model = GaudiGemma3ForConditionalGeneration.from_pretrained(
+            model_id, torch_dtype=dtype, device_map=torch_device
+        ).eval()
 
         ## generation keys
         kwargs["lazy_mode"] = False
@@ -65,7 +76,9 @@ def main():
             print(f"failed on loading HF Gemma3: {error}")
             exit
         torch_device = "cuda"
-        model = Gemma3ForConditionalGeneration.from_pretrained(model_id, device_map=torch_device).eval()
+        model = Gemma3ForConditionalGeneration.from_pretrained(
+            model_id, torch_dtype=dtype, device_map=torch_device
+        ).eval()
 
     processor = AutoProcessor.from_pretrained(model_id)
 

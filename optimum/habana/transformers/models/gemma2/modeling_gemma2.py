@@ -25,7 +25,7 @@ from transformers.cache_utils import Cache, DynamicCache, StaticCache
 from transformers.modeling_outputs import BaseModelOutputWithPast, CausalLMOutputWithPast
 from transformers.models.gemma2.modeling_gemma2 import (
     Gemma2Attention,
-    Gemma2Config,
+    # Gemma2Config,
     Gemma2DecoderLayer,
     Gemma2ForCausalLM,
     Gemma2MLP,
@@ -37,6 +37,7 @@ from transformers.utils import logging
 from ...modeling_attn_mask_utils import _gaudi_prepare_4d_causal_attention_mask
 from ...modeling_rope_utils import GaudiRotaryEmbedding
 from ..modeling_all_models import KVCache, Matmul, apply_customized_rope_module
+from .configuration_gemma2 import Gemma2Config
 
 
 try:
@@ -273,6 +274,7 @@ def gaudi_eager_attention_forward(
     )
 
     attn_weights = module.matmul_qk(query_states, key_states.transpose(-2, -1)) * scaling
+    # breakpoint()
 
     if softcap is not None:
         attn_weights = attn_weights / softcap
@@ -294,14 +296,10 @@ def gaudi_eager_attention_forward(
 class GaudiGemma2Attention(Gemma2Attention):
     def __init__(self, config: Gemma2Config, layer_idx: Optional[int] = None):
         super().__init__(config, layer_idx)
-        # self.is_sliding = not bool(layer_idx % 2)
+        self.layer_idx = layer_idx
+        self.sliding_window = config.sliding_window if config.layer_types[layer_idx] == "sliding_attention" else None
 
         self.rotary_emb = GaudiGemma2RotaryEmbedding(config=self.config)
-        # self.rotary_emb = GaudiGemma2RotaryEmbedding(
-        #     self.head_dim,
-        #     max_position_embeddings=config.max_position_embeddings,
-        #     base=config.rope_theta,
-        # )
 
         self.matmul_qk = Matmul()
         self.matmul_av = Matmul()
@@ -398,6 +396,12 @@ class GaudiGemma2Attention(Gemma2Attention):
         query_states = self.q_proj(hidden_states).view(hidden_shape).transpose(1, 2)
         key_states = self.k_proj(hidden_states).view(hidden_shape).transpose(1, 2)
         value_states = self.v_proj(hidden_states).view(hidden_shape).transpose(1, 2)
+        # breakpoint()
+        """
+        here on prefill:
+        - gpu position_embeddings[0].shape torch.Size([1, 493, 256]) query_states.shape torch.Size([1, 8, 493, 256]) hidden_states.shape and torch.Size([1, 493, 2304])...all of them dim[-2] is last_cache_position
+        - on hpu: query_states.shape torch.Size([1, 8, 4589, 256] hidden_states.shape torch.Size([1, 4589, 2304]) and position_embeddings is None. the query/hidden_states.shape is (max_new_token+token_idex)
+        """
 
         kv_seq_len = key_states.shape[-2]
         if past_key_value is not None:
@@ -443,6 +447,11 @@ class GaudiGemma2Attention(Gemma2Attention):
                 kv_seq_len = key_states.shape[-2]
         else:
             past_key_value = None
+        """
+        here on prefill:
+        - gpu past_key_value is not None... and then key_states, value_states = past_key_value.update(key_states, value_states, self.layer_idx, cache_kwargs) updates the key and value states to torch.Size([1, 4, 4096, 256]) (sliding_window is passed to cache_kwargs): https://github.com/huggingface/transformers/blob/v4.51.3/src/transformers/models/gemma2/modeling_gemma2.py#L224-L232
+        - on hpu: past_key_valye is None and query_states.shape torch.Size([1, 8, 4589, 256] ...aka static as (max_new_token+token_idex)
+        """
 
         # breakpoint()
         if use_flash_attention and FusedSDPA:
@@ -531,7 +540,8 @@ class GaudiGemma2MLP(Gemma2MLP):
 class GaudiGemma2DecoderLayer(Gemma2DecoderLayer):
     def __init__(self, config: Gemma2Config, layer_idx: int):
         super().__init__(config, layer_idx)
-        # self.self_attn = GaudiGemma2Attention(config, layer_idx)
+        self.self_attn = GaudiGemma2Attention(config, layer_idx)
+        self.attention_type = config.layer_types[layer_idx]
         self.mlp = GaudiGemma2MLP(config)
 
     def allocate_kv_cache(self, batch_size, max_seq_len, inp_seq_len):
@@ -612,11 +622,14 @@ class GaudiGemma2DecoderLayer(Gemma2DecoderLayer):
         The only differences are:
         - add new args token_idx
         """
-        # breakpoint()
+        if past_key_value is not None:
+            phase = "decode"
+        else:
+            phase = "prefill"
         # sliding_window mask from here: https://github.com/huggingface/transformers/blob/v4.51.3/src/transformers/models/gemma2/modeling_gemma2.py#L295-L315 with token_idx vs cache_position
         if False and self.is_sliding and attention_mask is not None and token_idx is not None:
             """
-            Here are the GPU shapes with input prompt "Write me a poem about Machine Learning." (so about 10 tokens) :
+            Here are the GPU shapes with input prompt "Write me a poem about Machine Learning." (so about 10 tokens) and max_new_token=100:
                 gem2 decoder fwd: attention_mask.shape torch.Size([1, 1, 9, 108]) last_cache_position 9 cache_position.shape torch.Size([9])
                 gem2 decoder fwd: attention_mask.shape torch.Size([1, 1, 9, 108]) last_cache_position 9 cache_position.shape torch.Size([9])
                 gem2 decoder fwd: attention_mask.shape torch.Size([1, 1, 9, 108]) last_cache_position 9 cache_position.shape torch.Size([9])
@@ -645,7 +658,7 @@ class GaudiGemma2DecoderLayer(Gemma2DecoderLayer):
                 gem2 decoder fwd: attention_mask.shape torch.Size([1, 1, 1, 108]) last_cache_position 108 cache_position.shape torch.Size([1])
                 gem2 decoder fwd: attention_mask.shape torch.Size([1, 1, 1, 108]) last_cache_position 108 cache_position.shape torch.Size([1]) << ends here
 
-            Here are the same with input prompt ""Here is my prompt" (about 5 token):
+            Here are the same with input prompt ""Here is my prompt" (about 5 token) and max_new_token=100:
                 gem2 decoder fwd: attention_mask.shape torch.Size([1, 1, 5, 104]) attention_mask.shape[-1] 104  last_cache_position 5 cache_position.shape torch.Size([5])
                 gem2 decoder fwd: attention_mask.shape torch.Size([1, 1, 5, 104]) attention_mask.shape[-1] 104  last_cache_position 5 cache_position.shape torch.Size([5])
                 gem2 decoder fwd: attention_mask.shape torch.Size([1, 1, 5, 104]) attention_mask.shape[-1] 104  last_cache_position 5 cache_position.shape torch.Size([5])
@@ -675,7 +688,70 @@ class GaudiGemma2DecoderLayer(Gemma2DecoderLayer):
                 gem2 decoder fwd: attention_mask.shape torch.Size([1, 1, 1, 104]) attention_mask.shape[-1] 104  last_cache_position 104 cache_position.shape torch.Size([1])
                 gem2 decoder fwd: attention_mask.shape torch.Size([1, 1, 1, 104]) attention_mask.shape[-1] 104  last_cache_position 104 cache_position.shape torch.Size([1]) << ends here
 
-            for hpu with the same with input prompt ""Here is my prompt" (about 5 token) in eager mode:
+            Here are gpu shapes with long input prompt and  and max_new_token=4k
+            gem2 decoder fwd BEFORE SWA: phase prefill attention_mask.shape torch.Size([1, 1, 493, 4588]) offset 0 last_cache_position 493 cache_position.shape torch.Size([493])
+            gem2 decoder fwd AFTER SWA:  phase prefill attention_mask.shape torch.Size([1, 1, 493, 4096]) offset 0 last_cache_position 493 cache_position.shape torch.Size([493])
+            gem2 decoder fwd BEFORE SWA: phase prefill attention_mask.shape torch.Size([1, 1, 493, 4588]) offset 0 last_cache_position 493 cache_position.shape torch.Size([493])
+            gem2 decoder fwd AFTER SWA:  phase prefill attention_mask.shape torch.Size([1, 1, 493, 4096]) offset 0 last_cache_position 493 cache_position.shape torch.Size([493])
+            gem2 decoder fwd BEFORE SWA: phase prefill attention_mask.shape torch.Size([1, 1, 493, 4588]) offset 0 last_cache_position 493 cache_position.shape torch.Size([493])
+            gem2 decoder fwd AFTER SWA:  phase prefill attention_mask.shape torch.Size([1, 1, 493, 4096]) offset 0 last_cache_position 493 cache_position.shape torch.Size([493])
+            gem2 decoder fwd BEFORE SWA: phase prefill attention_mask.shape torch.Size([1, 1, 493, 4588]) offset 0 last_cache_position 493 cache_position.shape torch.Size([493])
+            gem2 decoder fwd AFTER SWA:  phase prefill attention_mask.shape torch.Size([1, 1, 493, 4096]) offset 0 last_cache_position 493 cache_position.shape torch.Size([493])
+            gem2 decoder fwd BEFORE SWA: phase prefill attention_mask.shape torch.Size([1, 1, 493, 4588]) offset 0 last_cache_position 493 cache_position.shape torch.Size([493])
+            gem2 decoder fwd AFTER SWA:  phase prefill attention_mask.shape torch.Size([1, 1, 493, 4096]) offset 0 last_cache_position 493 cache_position.shape torch.Size([493])
+            gem2 decoder fwd BEFORE SWA: phase prefill attention_mask.shape torch.Size([1, 1, 493, 4588]) offset 0 last_cache_position 493 cache_position.shape torch.Size([493])
+            gem2 decoder fwd AFTER SWA:  phase prefill attention_mask.shape torch.Size([1, 1, 493, 4096]) offset 0 last_cache_position 493 cache_position.shape torch.Size([493])
+            gem2 decoder fwd BEFORE SWA: phase prefill attention_mask.shape torch.Size([1, 1, 493, 4588]) offset 0 last_cache_position 493 cache_position.shape torch.Size([493])
+            gem2 decoder fwd AFTER SWA:  phase prefill attention_mask.shape torch.Size([1, 1, 493, 4096]) offset 0 last_cache_position 493 cache_position.shape torch.Size([493])
+            gem2 decoder fwd BEFORE SWA: phase prefill attention_mask.shape torch.Size([1, 1, 493, 4588]) offset 0 last_cache_position 493 cache_position.shape torch.Size([493])
+            gem2 decoder fwd AFTER SWA:  phase prefill attention_mask.shape torch.Size([1, 1, 493, 4096]) offset 0 last_cache_position 493 cache_position.shape torch.Size([493])
+            gem2 decoder fwd BEFORE SWA: phase prefill attention_mask.shape torch.Size([1, 1, 493, 4588]) offset 0 last_cache_position 493 cache_position.shape torch.Size([493])
+            gem2 decoder fwd AFTER SWA:  phase prefill attention_mask.shape torch.Size([1, 1, 493, 4096]) offset 0 last_cache_position 493 cache_position.shape torch.Size([493])
+            gem2 decoder fwd BEFORE SWA: phase prefill attention_mask.shape torch.Size([1, 1, 493, 4588]) offset 0 last_cache_position 493 cache_position.shape torch.Size([493])
+            gem2 decoder fwd AFTER SWA:  phase prefill attention_mask.shape torch.Size([1, 1, 493, 4096]) offset 0 last_cache_position 493 cache_position.shape torch.Size([493])
+            gem2 decoder fwd BEFORE SWA: phase prefill attention_mask.shape torch.Size([1, 1, 493, 4588]) offset 0 last_cache_position 493 cache_position.shape torch.Size([493])
+            gem2 decoder fwd AFTER SWA:  phase prefill attention_mask.shape torch.Size([1, 1, 493, 4096]) offset 0 last_cache_position 493 cache_position.shape torch.Size([493])
+            gem2 decoder fwd BEFORE SWA: phase prefill attention_mask.shape torch.Size([1, 1, 493, 4588]) offset 0 last_cache_position 493 cache_position.shape torch.Size([493])
+            gem2 decoder fwd AFTER SWA:  phase prefill attention_mask.shape torch.Size([1, 1, 493, 4096]) offset 0 last_cache_position 493 cache_position.shape torch.Size([493])
+            gem2 decoder fwd BEFORE SWA: phase prefill attention_mask.shape torch.Size([1, 1, 493, 4588]) offset 0 last_cache_position 493 cache_position.shape torch.Size([493])
+            gem2 decoder fwd AFTER SWA:  phase prefill attention_mask.shape torch.Size([1, 1, 493, 4096]) offset 0 last_cache_position 493 cache_position.shape torch.Size([493])
+            gem2 decoder fwd BEFORE SWA: phase decode attention_mask.shape torch.Size([1, 1, 1, 4588]) offset 0 last_cache_position 494 cache_position.shape torch.Size([1])
+            gem2 decoder fwd AFTER SWA:  phase decode attention_mask.shape torch.Size([1, 1, 1, 4096]) offset 0 last_cache_position 494 cache_position.shape torch.Size([1])
+            gem2 decoder fwd BEFORE SWA: phase decode attention_mask.shape torch.Size([1, 1, 1, 4588]) offset 0 last_cache_position 494 cache_position.shape torch.Size([1])
+            gem2 decoder fwd AFTER SWA:  phase decode attention_mask.shape torch.Size([1, 1, 1, 4096]) offset 0 last_cache_position 494 cache_position.shape torch.Size([1])
+            gem2 decoder fwd BEFORE SWA: phase decode attention_mask.shape torch.Size([1, 1, 1, 4588]) offset 0 last_cache_position 494 cache_position.shape torch.Size([1])
+            gem2 decoder fwd AFTER SWA:  phase decode attention_mask.shape torch.Size([1, 1, 1, 4096]) offset 0 last_cache_position 494 cache_position.shape torch.Size([1])
+            gem2 decoder fwd BEFORE SWA: phase decode attention_mask.shape torch.Size([1, 1, 1, 4588]) offset 0 last_cache_position 494 cache_position.shape torch.Size([1])
+            .
+            .
+            gem2 decoder fwd AFTER SWA:  phase decode attention_mask.shape torch.Size([1, 1, 1, 4096]) offset 1 last_cache_position 4097 cache_position.shape torch.Size([1])
+            gem2 decoder fwd BEFORE SWA: phase decode attention_mask.shape torch.Size([1, 1, 1, 4588]) offset 1 last_cache_position 4097 cache_position.shape torch.Size([1])
+            gem2 decoder fwd AFTER SWA:  phase decode attention_mask.shape torch.Size([1, 1, 1, 4096]) offset 1 last_cache_position 4097 cache_position.shape torch.Size([1])
+            gem2 decoder fwd BEFORE SWA: phase decode attention_mask.shape torch.Size([1, 1, 1, 4588]) offset 1 last_cache_position 4097 cache_position.shape torch.Size([1])
+            gem2 decoder fwd AFTER SWA:  phase decode attention_mask.shape torch.Size([1, 1, 1, 4096]) offset 1 last_cache_position 4097 cache_position.shape torch.Size([1])
+            gem2 decoder fwd BEFORE SWA: phase decode attention_mask.shape torch.Size([1, 1, 1, 4588]) offset 1 last_cache_position 4097 cache_position.shape torch.Size([1])
+            gem2 decoder fwd AFTER SWA:  phase decode attention_mask.shape torch.Size([1, 1, 1, 4096]) offset 1 last_cache_position 4097 cache_position.shape torch.Size([1])
+            gem2 decoder fwd BEFORE SWA: phase decode attention_mask.shape torch.Size([1, 1, 1, 4588]) offset 2 last_cache_position 4098 cache_position.shape torch.Size([1])
+            gem2 decoder fwd AFTER SWA:  phase decode attention_mask.shape torch.Size([1, 1, 1, 4096]) offset 2 last_cache_position 4098 cache_position.shape torch.Size([1])
+            gem2 decoder fwd BEFORE SWA: phase decode attention_mask.shape torch.Size([1, 1, 1, 4588]) offset 2 last_cache_position 4098 cache_position.shape torch.Size([1])
+            gem2 decoder fwd AFTER SWA:  phase decode attention_mask.shape torch.Size([1, 1, 1, 4096]) offset 2 last_cache_position 4098 cache_position.shape torch.Size([1])
+            gem2 decoder fwd BEFORE SWA: phase decode attention_mask.shape torch.Size([1, 1, 1, 4588]) offset 2 last_cache_position 4098 cache_position.shape torch.Size([1])
+            gem2 decoder fwd AFTER SWA:  phase decode attention_mask.shape torch.Size([1, 1, 1, 4096]) offset 2 last_cache_position 4098 cache_position.shape torch.Size([1])
+            gem2 decoder fwd BEFORE SWA: phase decode attention_mask.shape torch.Size([1, 1, 1, 4588]) offset 2 last_cache_position 4098 cache_position.shape torch.Size([1])
+            gem2 decoder fwd AFTER SWA:  phase decode attention_mask.shape torch.Size([1, 1, 1, 4096]) offset 2 last_cache_position 4098 cache_position.shape torch.Size([1])
+            gem2 decoder fwd BEFORE SWA: phase decode attention_mask.shape torch.Size([1, 1, 1, 4588]) offset 2 last_cache_position 4098 cache_position.shape torch.Size([1])
+            gem2 decoder fwd AFTER SWA:  phase decode attention_mask.shape torch.Size([1, 1, 1, 4096]) offset 2 last_cache_position 4098 cache_position.shape torch.Size([1])
+            gem2 decoder fwd BEFORE SWA: phase decode attention_mask.shape torch.Size([1, 1, 1, 4588]) offset 2 last_cache_position 4098 cache_position.shape torch.Size([1])
+            gem2 decoder fwd AFTER SWA:  phase decode attention_mask.shape torch.Size([1, 1, 1, 4096]) offset 2 last_cache_position 4098 cache_position.shape torch.Size([1])
+            gem2 decoder fwd BEFORE SWA: phase decode attention_mask.shape torch.Size([1, 1, 1, 4588]) offset 2 last_cache_position 4098 cache_position.shape torch.Size([1])
+            gem2 decoder fwd AFTER SWA:  phase decode attention_mask.shape torch.Size([1, 1, 1, 4096]) offset 2 last_cache_position 4098 cache_position.shape torch.Size([1])
+            gem2 decoder fwd BEFORE SWA: phase decode attention_mask.shape torch.Size([1, 1, 1, 4588]) offset 2 last_cache_position 4098 cache_position.shape torch.Size([1])
+            gem2 decoder fwd AFTER SWA:  phase decode attention_mask.shape torch.Size([1, 1, 1, 4096]) offset 2 last_cache_position 4098 cache_position.shape torch.Size([1])
+            gem2 decoder fwd BEFORE SWA: phase decode attention_mask.shape torch.Size([1, 1, 1, 4588]) offset 2 last_cache_position 4098 cache_position.shape torch.Size([1])
+            gem2 decoder fwd AFTER SWA:  phase decode attention_mask.shape torch.Size([1, 1, 1, 4096]) offset 2 last_cache_position 4098 cache_position.shape torch.Size([1])
+
+
+            for hpu with the same with input prompt ""Here is my prompt" (about 5 token) with max_new_token=100 in eager mode:
                - cache_postion and last_cache_positon is empty
                - past_key_value is None during the prefill
                 decoder-fwd-nopasskey: token_idx.item() 5 attention_mask.shape[-1] 105
@@ -704,8 +780,13 @@ class GaudiGemma2DecoderLayer(Gemma2DecoderLayer):
                 decoder-fwd-withpasskey: token_idx.item() 104 attention_mask.shape[-1] 105 len(past_key_value) 2
                 decoder-fwd-withpasskey: token_idx.item() 104 attention_mask.shape[-1] 105 len(past_key_value) 2 << ends here
 
-            so for hpu:
-            - if  past_key_value is None >> ## prefill >> cache_position.shape >> token_idx.item() othereise in decode cache_positon.shape[0] is 1 (should be the same with gpu)
+            so:
+            - if  past_key_value is None on hpu >> prefill otherwise is decode
+            - on gpu, cache.shape[0]>1 >> prefill and ==1 is decode
+            - cache_position.shape >> token_idx.item() seems to match and in prefill cache_postition.shape[0] is 1
+            - in gpu, if max_new_token+inpout > 4k, the attention mask is always 4k, and the hidden_states.sahpe[-2] is input prompt len
+            - attention_mask dims are the same on hpu and gpu.. it is always 1,1,(token_idx.item+man_new_token) or (last_cache_postion+max_new_token)
+            - in hpu, the hidden.shape[-2] is always static and = token_idx.item() (aka the current postion in the input) + max_new_token (satic cache)
             - the last_cache_postion = token_idx.item()...check this with hpu in eager mode.
             - in some cases, running lm_eval leads to token_idx being None! so I had to add a if None to for it.
             """
@@ -725,22 +806,21 @@ class GaudiGemma2DecoderLayer(Gemma2DecoderLayer):
                 # print(
                 #     f"decoder-fwd:  attention_mask.shape[-1] {attention_mask.shape[-1]} effective_seq_len {effective_seq_len} offset {offset}"
                 # )
-                if past_key_value is None:
-                    print(
-                        f"decoder-fwd-nopasskey: token_idx.item() {token_idx.item()} attention_mask.shape[-1] {attention_mask.shape[-1]}"
-                    )
-                else:
-                    print(
-                        f"decoder-fwd-withpasskey: token_idx.item() {token_idx.item()} attention_mask.shape[-1] {attention_mask.shape[-1]} len(past_key_value) {len(past_key_value)}"
-                    )
-                # if past_key_value is None:
-                #     print(f"decoder-fwd-nopasskey: token_idx.item() {token_idx.item()} attention_mask.shape[-1] {attention_mask.shape[-1]} effective_seq_len {effective_seq_len} offset {offset}")
-                # else:
-                #     print(f"decoder-fwd-withpasskey: token_idx.item() {token_idx.item()} attention_mask.shape[-1] {attention_mask.shape[-1]} effective_seq_len {effective_seq_len} offset {offset} len(past_key_value) {len(past_key_value)}")
-                print(f"self.self_attn.k_cache.get_shape() {self.self_attn.k_cache.get_shape()}")
+                print(
+                    f"gem2 decoder fwd BEFORE SWA: phase {phase} attention_mask.shape {attention_mask.shape} offset {offset} token_idx.item() {token_idx.item()}"
+                )
+                # print(f"self.self_attn.k_cache.get_shape() {self.self_attn.k_cache.get_shape()}")
                 attention_mask = attention_mask[:, :, :, offset : offset + effective_seq_len]
+                print(
+                    f"gem2 decoder fwd AFTER SWA: phase {phase} attention_mask.shape {attention_mask.shape} offset {offset} token_idx.item() {token_idx.item()}"
+                )
 
         residual = hidden_states
+        # breakpoint()
+        """
+        IG: on prefill here:  hidden_states.shape torch.Size([1, 493, 2304]) but on hpu torch.Size([1, 4589, 2304]) aka on hpu the dim is max_new_token + token_idx, but on gpu the dim is last_cache_position
+        """
+
         hidden_states, self_attn_weights, present_key_value = self.pre_attn(
             hidden_states,
             position_embeddings,
@@ -925,6 +1005,26 @@ class GaudiGemma2Model(Gemma2Model):
                 inputs_embeds,
                 past_seen_tokens,
             )
+            if not isinstance(causal_mask_mapping := attention_mask, dict):
+                """
+                IG: Addapted from here: https://github.com/huggingface/transformers/blob/v4.55.0/src/transformers/models/gemma2/modeling_gemma2.py#L416-L430
+                with _gaudi_prepare_4d_causal_attention_mask
+                """
+                causal_mask_mapping = {
+                    "full_attention": _gaudi_prepare_4d_causal_attention_mask(
+                        attention_mask,
+                        input_ids.shape if input_ids is not None else (batch_size, seq_length),
+                        inputs_embeds,
+                        past_seen_tokens,
+                    ),
+                    "sliding_attention": _gaudi_prepare_4d_causal_attention_mask(
+                        attention_mask,
+                        input_ids.shape if input_ids is not None else (batch_size, seq_length),
+                        inputs_embeds,
+                        past_seen_tokens,
+                        self.config.sliding_window,
+                    ),
+                }
         else:
             causal_mask = self._update_causal_mask(
                 attention_mask, inputs_embeds, cache_position, past_key_values, output_attentions
@@ -963,7 +1063,6 @@ class GaudiGemma2Model(Gemma2Model):
                     partial(decoder_layer.__call__, **kwargs),
                     hidden_states,
                     position_embeddings,
-                    # causal_mask_local if not bool(layer_idx % 2) else causal_mask_gloabal,
                     causal_mask,
                     position_ids,
                     past_key_values,
@@ -984,8 +1083,8 @@ class GaudiGemma2Model(Gemma2Model):
                 layer_outputs = decoder_layer(
                     hidden_states,
                     position_embeddings=position_embeddings,
-                    # attention_mask=causal_mask_local if not bool(layer_idx % 2) else causal_mask_gloabal,
-                    attention_mask=causal_mask,
+                    attention_mask=causal_mask_mapping[decoder_layer.attention_type],
+                    # attention_mask=causal_mask,
                     position_ids=position_ids,
                     past_key_value=None if past_key_values is None else past_key_values[layer_idx],
                     output_attentions=output_attentions,

@@ -1,0 +1,100 @@
+diff --git a/optimum/habana/transformers/generation/utils.py b/optimum/habana/transformers/generation/utils.py
+index e973fbd0..d9382827 100755
+--- a/optimum/habana/transformers/generation/utils.py
++++ b/optimum/habana/transformers/generation/utils.py
+@@ -107,8 +107,8 @@ MODELS_OPTIMIZED_WITH_STATIC_SHAPES = [
+     "mixtral",
+     "gemma",
+     "gemma2",
+-    "gemma3",
+-    "gemma3_text",
++    # "gemma3",
++    # "gemma3_text",
+     "blip_text_model",
+     "seamless_m4t",
+     "starcoder2",
+diff --git a/optimum/habana/transformers/models/gemma3/modeling_gemma3.py b/optimum/habana/transformers/models/gemma3/modeling_gemma3.py
+index 9491ec14..5e9d3249 100755
+--- a/optimum/habana/transformers/models/gemma3/modeling_gemma3.py
++++ b/optimum/habana/transformers/models/gemma3/modeling_gemma3.py
+@@ -386,8 +386,8 @@ class GaudiGemma3MLP(Gemma3MLP):
+ class GaudiGemma3DecoderLayer(Gemma3DecoderLayer):
+     def __init__(self, config: Gemma3TextConfig, layer_idx: int):
+         super().__init__(config, layer_idx)
+-        self.self_attn = GaudiGemma3Attention(config, layer_idx)
+-        self.mlp = GaudiGemma3MLP(config)
++        self.self_attn = Gemma3Attention(config, layer_idx)
++        self.mlp = Gemma3MLP(config)
+ 
+     def allocate_kv_cache(self, batch_size, max_seq_len, inp_seq_len):
+         self.self_attn.allocate_kv_cache(batch_size, max_seq_len, inp_seq_len)
+@@ -472,12 +472,19 @@ class GaudiGemma3DecoderLayer(Gemma3DecoderLayer):
+         # if past_key_value is not None:
+         #     breakpoint()
+         residual = hidden_states
++
++        hidden_states = self.input_layernorm(
++            hidden_states
++        )  ## when calling self_attn from HF you need to add this back. when calling pre_attn from OH attention later, you shouldn't call this here again.
++
+         # apply global RoPE to non-sliding layer only
+         if self.self_attn.is_sliding:
+             position_embeddings = position_embeddings_local
+         else:
+             position_embeddings = position_embeddings_global
+-        hidden_states, self_attn_weights, present_key_value = self.pre_attn(
++
++        hidden_states, self_attn_weights = self.self_attn(
++            # hidden_states, self_attn_weights, present_key_value = self.pre_attn(
+             hidden_states=hidden_states,
+             position_embeddings=position_embeddings,
+             attention_mask=attention_mask,
+@@ -486,33 +493,22 @@ class GaudiGemma3DecoderLayer(Gemma3DecoderLayer):
+             output_attentions=output_attentions,
+             use_cache=use_cache,
+             cache_position=cache_position,
+-            token_idx=token_idx,
+-            attn_softmax_bf16=attn_softmax_bf16,
+-            reuse_cache=reuse_cache,
+-            use_flash_attention=use_flash_attention,
+-            flash_attention_recompute=flash_attention_recompute,
+-            flash_attention_causal_mask=flash_attention_causal_mask,
+-            flash_attention_fast_softmax=flash_attention_fast_softmax,
+-            cache_idx=cache_idx,
+             **kwargs,
+         )
++        hidden_states = self.post_attention_layernorm(hidden_states)
++        hidden_states = residual + hidden_states
+ 
+-        self.self_attn.attention_all_reduce(hidden_states)
+-
+-        hidden_states, residual = self.post_attn_pre_mlp(hidden_states, residual)
+-
+-        self.mlp.mlp_all_reduce(hidden_states)
+-
+-        hidden_states = self.post_mlp(hidden_states, residual)
++        residual = hidden_states
++        hidden_states = self.pre_feedforward_layernorm(hidden_states)
++        hidden_states = self.mlp(hidden_states)
++        hidden_states = self.post_feedforward_layernorm(hidden_states)
++        hidden_states = residual + hidden_states
+ 
+         outputs = (hidden_states,)
+ 
+         if output_attentions:
+             outputs += (self_attn_weights,)
+ 
+-        if use_cache:
+-            outputs += (present_key_value,)
+-
+         return outputs
+ 
+     def post_attn_pre_mlp(self, hidden_states, residual):
+@@ -582,6 +578,7 @@ class GaudiGemma3TextModel(Gemma3TextModel):
+         **kwargs,
+     ) -> BaseModelOutputWithPast:
+         """
++        Inherits from Gemma2: https://github.com/huggingface/optimum-habana/blob/v1.18.1/optimum/habana/transformers/models/gemma2/modeling_gemma2.py#L6847 with Gemma3 changes
+         """
+         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
+         output_hidden_states = (

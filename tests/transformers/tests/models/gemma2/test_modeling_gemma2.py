@@ -20,7 +20,7 @@ import pytest
 from packaging import version
 from parameterized import parameterized
 from pytest import mark
-from transformers import AutoModelForCausalLM, AutoTokenizer, Gemma2Config, is_torch_available, pipeline
+from transformers import AutoModelForCausalLM, AutoTokenizer, is_torch_available, pipeline
 from transformers.generation.configuration_utils import GenerationConfig
 from transformers.testing_utils import (
     require_flash_attn,
@@ -32,6 +32,7 @@ from transformers.testing_utils import (
 )
 
 from optimum.habana.transformers.modeling_utils import adapt_transformers_to_gaudi
+from optimum.habana.transformers.models.gemma2.configuration_gemma2 import Gemma2Config
 
 from ...models.gemma.test_modeling_gemma import GemmaModelTest, GemmaModelTester
 from ...test_configuration_common import ConfigTester

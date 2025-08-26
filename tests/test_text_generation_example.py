@@ -23,6 +23,8 @@ if OH_DEVICE_CONTEXT not in ["gaudi1"]:
     # Gaudi2+
     MODELS_TO_TEST = {
         "bf16_1x": [
+            # ("mistralai/Mistral-7B-v0.1", 1, True, True),
+            # ("mistralai/Mixtral-8x7B-v0.1", 1, False, True),
             ("google/gemma-3-4b-it", 1, False, True),
             ("google/gemma-3-12b-it", 1, False, True),
             ("google/gemma-3-27b-it", 1, False, True),

@@ -32,7 +32,7 @@ from transformers.models.gemma3.modeling_gemma3 import (
     Gemma3ForCausalLM,
     Gemma3ForConditionalGeneration,
     Gemma3MLP,
-    Gemma3TextConfig,
+    # Gemma3TextConfig,
     Gemma3TextModel,
     apply_rotary_pos_emb,
 )
@@ -41,6 +41,7 @@ from transformers.utils import is_torchdynamo_compiling, logging
 from ...modeling_attn_mask_utils import _gaudi_prepare_4d_causal_attention_mask
 from ...modeling_rope_utils import GaudiRotaryEmbedding
 from ..modeling_all_models import KVCache, Matmul, apply_customized_rope_module
+from .configuration_gemma3 import Gemma3TextConfig
 
 
 # pdb.set_trace()
@@ -147,6 +148,8 @@ def gaudi_eager_attention_forward(
 class GaudiGemma3Attention(Gemma3Attention):
     def __init__(self, config: Gemma3TextConfig, layer_idx: Optional[int] = None):
         super().__init__(config, layer_idx)
+        # breakpoint()
+        self.sliding_window = config.sliding_window if config.layer_types[layer_idx] == "sliding_attention" else None
         self.rotary_emb = GaudiGemma3RotaryEmbedding(config=self.config)
         config = copy.deepcopy(config)
         config.rope_theta = config.rope_local_base_freq
@@ -386,6 +389,7 @@ class GaudiGemma3MLP(Gemma3MLP):
 class GaudiGemma3DecoderLayer(Gemma3DecoderLayer):
     def __init__(self, config: Gemma3TextConfig, layer_idx: int):
         super().__init__(config, layer_idx)
+        self.attention_type = config.layer_types[layer_idx]
         self.self_attn = GaudiGemma3Attention(config, layer_idx)
         self.mlp = GaudiGemma3MLP(config)
 
@@ -464,9 +468,7 @@ class GaudiGemma3DecoderLayer(Gemma3DecoderLayer):
         **kwargs,
     ) -> tuple[torch.FloatTensor, Optional[tuple[torch.FloatTensor, torch.FloatTensor]]]:
         """
-        Copied from Gemma3DecoderLayer.forward: https://github.com/huggingface/transformers/blob/main/src/transformers/models/gemma3/modeling_gemma3.py#L361
-        The only differences are:
-        - add new args token_idx
+        Inherited from Gemma2: https://github.com/huggingface/optimum-habana/blob/v1.18.1/optimum/habana/transformers/models/gemma2/modeling_gemma2.py#L577 with Gemma3 changes
         """
         """
         IG: here I started debugging eager vs lazy: in prefill they match but in decode, i.e. if past_key_value is not None hidden_states does NOT match.
@@ -584,10 +586,7 @@ class GaudiGemma3TextModel(Gemma3TextModel):
         **kwargs,
     ) -> BaseModelOutputWithPast:
         """
-        Copied from GemmaModel.forward: https://github.com/huggingface/transformers/blob/v4.38.1/src/transformers/models/gemma/modeling_gemma.py
-        The only differences are:
-        - add new args token_idx
-        - replace _update_causal_mask with _gaudi_prepare_4d_causal_attention_mask
+        Inherits from Gemma2: https://github.com/huggingface/optimum-habana/blob/v1.18.1/optimum/habana/transformers/models/gemma2/modeling_gemma2.py#L6847 with Gemma3 changes
         """
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
@@ -663,6 +662,27 @@ class GaudiGemma3TextModel(Gemma3TextModel):
                 inputs_embeds,
                 past_seen_tokens,
             )
+            if not isinstance(causal_mask_mapping := attention_mask, dict):
+                """
+                IG: Addapted from here: https://github.com/huggingface/transformers/blob/v4.55.0/src/transformers/models/gemma2/modeling_gemma2.py#L416-L430
+                with _gaudi_prepare_4d_causal_attention_mask
+                """
+
+                causal_mask_mapping = {
+                    "full_attention": _gaudi_prepare_4d_causal_attention_mask(
+                        attention_mask,
+                        input_ids.shape if input_ids is not None else (batch_size, seq_length),
+                        inputs_embeds,
+                        past_seen_tokens,
+                    ),
+                    "sliding_attention": _gaudi_prepare_4d_causal_attention_mask(
+                        attention_mask,
+                        input_ids.shape if input_ids is not None else (batch_size, seq_length),
+                        inputs_embeds,
+                        past_seen_tokens,
+                        self.config.sliding_window,
+                    ),
+                }
         else:
             causal_mask = self._update_causal_mask(
                 attention_mask,
@@ -725,7 +745,8 @@ class GaudiGemma3TextModel(Gemma3TextModel):
                     hidden_states,
                     position_embeddings_global=position_embeddings_global,
                     position_embeddings_local=position_embeddings_local,
-                    attention_mask=causal_mask,
+                    attention_mask=causal_mask_mapping[decoder_layer.attention_type],
+                    # attention_mask=causal_mask,
                     position_ids=position_ids,
                     past_key_value=None if past_key_values is None else past_key_values[layer_idx],
                     output_attentions=output_attentions,
@@ -805,9 +826,7 @@ class GaudiGemma3ForCausalLM(Gemma3ForCausalLM):
         **loss_kwargs,
     ) -> CausalLMOutputWithPast:
         """
-        Inherits from Gemma3ForCausalLM: https://github.com/huggingface/transformers/blob/main/src/transformers/models/gemma3/modeling_gemma3.py#L606
-        The only differences are:
-        - add new args token_idx
+        Inherits from Gemma2: https://github.com/huggingface/optimum-habana/blob/v1.18.1/optimum/habana/transformers/models/gemma2/modeling_gemma2.py#L887 with Gemma3 changes
         """
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
@@ -879,12 +898,7 @@ class GaudiGemma3ForCausalLM(Gemma3ForCausalLM):
         **kwargs,
     ):
         """
-        Inherits from GemmaForCausalLM: https://github.com/huggingface/transformers/blob/v4.38.1/src/transformers/models/gemma/modeling_gemma.py
-        The only differences are:
-        - add new args token_idx
-        - add token_idx into model_inputs
-        - from step2 when enable KV cache, slice next_input_ids from input_ids base on the token_idx
-        - from step2 when enable KV cache, slice next_position_ids from position_ids base on the token_idx
+        Inherits from Gemma2: https://github.com/huggingface/optimum-habana/blob/v1.18.1/optimum/habana/transformers/models/gemma2/modeling_gemma2.py#L973
         """
 
         reuse_cache = kwargs.get("reuse_cache")
@@ -989,7 +1003,11 @@ class GaudiGemma3ForConditionalGeneration(Gemma3ForConditionalGeneration):
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
-        use_cache = use_cache if use_cache is not None else self.config.use_cache
+        """
+        IG: here gemma3config doesn't have use cache. self.config.text_config does.
+        """
+        # breakpoint()
+        use_cache = use_cache if use_cache is not None else self.config.text_config.use_cache
 
         if input_ids is not None and inputs_embeds is not None:
             raise ValueError("You must specify exactly one of input_ids or inputs_embeds")

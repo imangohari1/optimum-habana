@@ -23,7 +23,8 @@ from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     Gemma3Config,
-    Gemma3TextConfig,
+    # Gemma3TextConfig,
+    Gemma3Processor,
     GenerationConfig,
     is_torch_available,
 )
@@ -37,6 +38,7 @@ from transformers.testing_utils import (
 )
 
 from optimum.habana.transformers.modeling_utils import adapt_transformers_to_gaudi
+from optimum.habana.transformers.models.gemma3.configuration_gemma3 import Gemma3TextConfig
 
 from ...generation.test_utils import GenerationTesterMixin
 from ...models.gemma.test_modeling_gemma import GemmaModelTester
@@ -44,8 +46,8 @@ from ...test_configuration_common import ConfigTester
 from ...test_modeling_common import ModelTesterMixin, floats_tensor, ids_tensor
 
 
-torch_device = "hpu"
-adapt_transformers_to_gaudi()
+# from optimum.habana.transformers.models.gemma3.modeling_gemma3 import GaudiGemma3TextModel, GaudiGemma3ForCausalLM, GaudiGemma3ForConditionalGeneration
+
 
 if is_torch_available():
     import torch
@@ -56,12 +58,15 @@ if is_torch_available():
         Gemma3TextModel,
     )
 
+torch_device = "hpu"
+adapt_transformers_to_gaudi()
+
 
 class Gemma3ModelTester(GemmaModelTester):
     if is_torch_available():
         config_class = Gemma3TextConfig
         model_class = Gemma3TextModel
-        for_causal_lm_class = Gemma3ForCausalLM
+        for_causal_lm_class = Gemma3ForConditionalGeneration
 
 
 @require_torch
@@ -75,7 +80,7 @@ class Gemma3ModelTest(ModelTesterMixin, GenerationTesterMixin, unittest.TestCase
 
     def setUp(self):
         self.model_tester = Gemma3ModelTester(self)
-        self.config_tester = ConfigTester(self, config_class=Gemma3Config, hidden_size=37)
+        self.config_tester = ConfigTester(self, config_class=Gemma3TextConfig, hidden_size=37)
 
     @unittest.skip("Failing because of unique cache (HybridCache)")
     def test_model_outputs_equivalence(self, **kwargs):
