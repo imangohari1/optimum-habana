@@ -67,6 +67,8 @@ check_optimum_habana_min_version("1.18.0.dev0")
 
 require_version("datasets>=2.14.0", "To fix: pip install -r examples/pytorch/language-modeling/requirements.txt")
 
+from optimum.habana.transformers.modeling_utils import adapt_transformers_to_gaudi
+adapt_transformers_to_gaudi()
 
 MODEL_CONFIG_CLASSES = list(MODEL_FOR_CAUSAL_LM_MAPPING.keys())
 MODEL_TYPES = tuple(conf.model_type for conf in MODEL_CONFIG_CLASSES)

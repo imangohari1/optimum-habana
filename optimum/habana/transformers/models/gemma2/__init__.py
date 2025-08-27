@@ -1,4 +1,4 @@
-from .configuration_gemma2 import Gemma2Config
+# from .configuration_gemma2 import Gemma2Config
 from .modeling_gemma2 import (
     GaudiGemma2Attention,
     GaudiGemma2DecoderLayer,

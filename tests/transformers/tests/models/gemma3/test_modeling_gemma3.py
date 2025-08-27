@@ -23,8 +23,8 @@ from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     Gemma3Config,
-    # Gemma3TextConfig,
     Gemma3Processor,
+    Gemma3TextConfig,
     GenerationConfig,
     is_torch_available,
 )
@@ -38,8 +38,8 @@ from transformers.testing_utils import (
 )
 
 from optimum.habana.transformers.modeling_utils import adapt_transformers_to_gaudi
-from optimum.habana.transformers.models.gemma3.configuration_gemma3 import Gemma3TextConfig
 
+# from optimum.habana.transformers.models.gemma3.configuration_gemma3 import Gemma3TextConfig
 from ...generation.test_utils import GenerationTesterMixin
 from ...models.gemma.test_modeling_gemma import GemmaModelTester
 from ...test_configuration_common import ConfigTester

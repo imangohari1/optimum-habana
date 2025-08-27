@@ -32,7 +32,7 @@ from transformers.models.gemma3.modeling_gemma3 import (
     Gemma3ForCausalLM,
     Gemma3ForConditionalGeneration,
     Gemma3MLP,
-    # Gemma3TextConfig,
+    Gemma3TextConfig,
     Gemma3TextModel,
     apply_rotary_pos_emb,
 )
@@ -41,7 +41,9 @@ from transformers.utils import is_torchdynamo_compiling, logging
 from ...modeling_attn_mask_utils import _gaudi_prepare_4d_causal_attention_mask
 from ...modeling_rope_utils import GaudiRotaryEmbedding
 from ..modeling_all_models import KVCache, Matmul, apply_customized_rope_module
-from .configuration_gemma3 import Gemma3TextConfig
+
+
+# from .configuration_gemma3 import Gemma3TextConfig
 
 
 # pdb.set_trace()
@@ -149,7 +151,11 @@ class GaudiGemma3Attention(Gemma3Attention):
     def __init__(self, config: Gemma3TextConfig, layer_idx: Optional[int] = None):
         super().__init__(config, layer_idx)
         # breakpoint()
-        self.sliding_window = config.sliding_window if config.layer_types[layer_idx] == "sliding_attention" else None
+        self._sliding_window_pattern = 6
+        self.layer_type = (
+            "sliding_attention" if bool((layer_idx + 1) % self._sliding_window_pattern) else "full_attention"
+        )
+        self.sliding_window = config.sliding_window if self.layer_type == "sliding_attention" else None
         self.rotary_emb = GaudiGemma3RotaryEmbedding(config=self.config)
         config = copy.deepcopy(config)
         config.rope_theta = config.rope_local_base_freq
@@ -389,7 +395,11 @@ class GaudiGemma3MLP(Gemma3MLP):
 class GaudiGemma3DecoderLayer(Gemma3DecoderLayer):
     def __init__(self, config: Gemma3TextConfig, layer_idx: int):
         super().__init__(config, layer_idx)
-        self.attention_type = config.layer_types[layer_idx]
+        self._sliding_window_pattern = 6
+        self.attention_type = (
+            "sliding_attention" if bool((layer_idx + 1) % self._sliding_window_pattern) else "full_attention"
+        )
+        # self.attention_type = config.layer_types[layer_idx]
         self.self_attn = GaudiGemma3Attention(config, layer_idx)
         self.mlp = GaudiGemma3MLP(config)
 

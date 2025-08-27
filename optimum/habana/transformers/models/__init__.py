@@ -118,7 +118,7 @@ from .gemma2 import (
     GaudiGemma2MLP,
     GaudiGemma2Model,
     GaudiGemma2RotaryEmbedding,
-    Gemma2Config,
+    # Gemma2Config,
 )
 from .gemma3 import (
     GaudiGemma3Attention,
@@ -128,7 +128,7 @@ from .gemma3 import (
     GaudiGemma3MLP,
     GaudiGemma3RotaryEmbedding,
     GaudiGemma3TextModel,
-    Gemma3TextConfig,
+    # Gemma3TextConfig,
 )
 from .glm4v import (
     ChatGLM4Tokenizer,

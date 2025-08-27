@@ -1,4 +1,4 @@
-from .configuration_gemma3 import Gemma3TextConfig
+# from .configuration_gemma3 import Gemma3TextConfig
 from .modeling_gemma3 import (
     GaudiGemma3Attention,
     GaudiGemma3DecoderLayer,

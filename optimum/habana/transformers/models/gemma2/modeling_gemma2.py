@@ -25,7 +25,7 @@ from transformers.cache_utils import Cache, DynamicCache, StaticCache
 from transformers.modeling_outputs import BaseModelOutputWithPast, CausalLMOutputWithPast
 from transformers.models.gemma2.modeling_gemma2 import (
     Gemma2Attention,
-    # Gemma2Config,
+    Gemma2Config,
     Gemma2DecoderLayer,
     Gemma2ForCausalLM,
     Gemma2MLP,
@@ -37,7 +37,9 @@ from transformers.utils import logging
 from ...modeling_attn_mask_utils import _gaudi_prepare_4d_causal_attention_mask
 from ...modeling_rope_utils import GaudiRotaryEmbedding
 from ..modeling_all_models import KVCache, Matmul, apply_customized_rope_module
-from .configuration_gemma2 import Gemma2Config
+
+
+# from .configuration_gemma2 import Gemma2Config
 
 
 try:
@@ -297,7 +299,12 @@ class GaudiGemma2Attention(Gemma2Attention):
     def __init__(self, config: Gemma2Config, layer_idx: Optional[int] = None):
         super().__init__(config, layer_idx)
         self.layer_idx = layer_idx
-        self.sliding_window = config.sliding_window if config.layer_types[layer_idx] == "sliding_attention" else None
+        # breakpoint()
+        self._sliding_window_pattern = 2
+        self.layer_type = (
+            "sliding_attention" if bool((layer_idx + 1) % self._sliding_window_pattern) else "full_attention"
+        )
+        self.sliding_window = config.sliding_window if self.layer_type == "sliding_attention" else None
 
         self.rotary_emb = GaudiGemma2RotaryEmbedding(config=self.config)
 
@@ -541,7 +548,11 @@ class GaudiGemma2DecoderLayer(Gemma2DecoderLayer):
     def __init__(self, config: Gemma2Config, layer_idx: int):
         super().__init__(config, layer_idx)
         self.self_attn = GaudiGemma2Attention(config, layer_idx)
-        self.attention_type = config.layer_types[layer_idx]
+        self._sliding_window_pattern = 2
+        self.attention_type = (
+            "sliding_attention" if bool((layer_idx + 1) % self._sliding_window_pattern) else "full_attention"
+        )
+        # self.attention_type = self.self_attn.layer_types[layer_idx]
         self.mlp = GaudiGemma2MLP(config)
 
     def allocate_kv_cache(self, batch_size, max_seq_len, inp_seq_len):
