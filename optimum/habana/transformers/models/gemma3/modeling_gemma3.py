@@ -151,11 +151,7 @@ class GaudiGemma3Attention(Gemma3Attention):
     def __init__(self, config: Gemma3TextConfig, layer_idx: Optional[int] = None):
         super().__init__(config, layer_idx)
         # breakpoint()
-        self._sliding_window_pattern = 6
-        self.layer_type = (
-            "sliding_attention" if bool((layer_idx + 1) % self._sliding_window_pattern) else "full_attention"
-        )
-        self.sliding_window = config.sliding_window if self.layer_type == "sliding_attention" else None
+        self.layer_type = "sliding_attention" if self.sliding_window else "full_attention"
         self.rotary_emb = GaudiGemma3RotaryEmbedding(config=self.config)
         config = copy.deepcopy(config)
         config.rope_theta = config.rope_local_base_freq
@@ -395,12 +391,9 @@ class GaudiGemma3MLP(Gemma3MLP):
 class GaudiGemma3DecoderLayer(Gemma3DecoderLayer):
     def __init__(self, config: Gemma3TextConfig, layer_idx: int):
         super().__init__(config, layer_idx)
-        self._sliding_window_pattern = 6
-        self.attention_type = (
-            "sliding_attention" if bool((layer_idx + 1) % self._sliding_window_pattern) else "full_attention"
-        )
-        # self.attention_type = config.layer_types[layer_idx]
         self.self_attn = GaudiGemma3Attention(config, layer_idx)
+        # in ver 4.55 onward, here we can use config.layer_types[layer_idx]: https://github.com/huggingface/transformers/blob/v4.55.0/src/transformers/models/gemma2/modeling_gemma2.py#L245
+        self.attention_type = self.self_attn.layer_type
         self.mlp = GaudiGemma3MLP(config)
 
     def allocate_kv_cache(self, batch_size, max_seq_len, inp_seq_len):
@@ -751,6 +744,7 @@ class GaudiGemma3TextModel(Gemma3TextModel):
                     None,
                 )
             else:
+                # print(f"decoder_layer.attention_type {decoder_layer.attention_type}")
                 layer_outputs = decoder_layer(
                     hidden_states,
                     position_embeddings_global=position_embeddings_global,
