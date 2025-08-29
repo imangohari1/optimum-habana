@@ -28,18 +28,14 @@ class GaudiAttentionMaskConverter(AttentionMaskConverter):
     - replace `triu` with similar logic here: https://github.com/huggingface/transformers/blob/v4.37.2/src/transformers/modeling_attn_mask_utils.py#L169
     """
 
-    @staticmethod
-    def _create_causal_mask(
+    def _generate_mask_basics(
+        self,
         input_ids_shape: torch.Size,
         dtype: torch.dtype,
         device: torch.device,
         past_key_values_length: int = 0,
     ):
-        """
-        Make causal mask used for bi-directional self-attention.
-        """
         bsz, tgt_len = input_ids_shape
-
         mask = torch.full((tgt_len, tgt_len), torch.finfo(dtype).min, device=device)
         mask_cond = torch.arange(mask.size(-1), device=device)
         mask.masked_fill_(mask_cond < (mask_cond + 1).view(mask.size(-1), 1), 0)
@@ -50,11 +46,26 @@ class GaudiAttentionMaskConverter(AttentionMaskConverter):
             mask = torch.cat(
                 [torch.zeros(tgt_len, past_key_values_length - tgt_len, dtype=dtype, device=device), mask], dim=-1
             )
+        return bsz, tgt_len, mask
+
+    @staticmethod
+    def _create_causal_mask(
+        self,
+        input_ids_shape: torch.Size,
+        dtype: torch.dtype,
+        device: torch.device,
+        past_key_values_length: int = 0,
+    ):
+        """
+        Make causal mask used for bi-directional self-attention.
+        """
+        bsz, tgt_len, mask = self._generate_mask_basics(input_ids_shape, dtype, device, past_key_values_length)
 
         return mask[None, None, :, :].expand(bsz, 1, tgt_len, tgt_len + past_key_values_length)
 
     @staticmethod
     def _create_sliding_window_causal_mask(
+        self,
         input_ids_shape: torch.Size,
         dtype: torch.dtype,
         device: torch.device,
@@ -65,24 +76,11 @@ class GaudiAttentionMaskConverter(AttentionMaskConverter):
         """
         Make sliding window causal mask used for bi-directional self-attention.
         """
-        # if sliding_window is None:
-        #     raise ValueError("Could not find a `sliding_window` argument, or it is not set")
+        if sliding_window is None:
+            raise ValueError("Could not find a `sliding_window` argument, or it is not set")
 
+        bsz, tgt_len, mask = self._generate_mask_basics(input_ids_shape, dtype, device, past_key_values_length)
         token_idx = token_idx if token_idx is not None else past_key_values_length
-        bsz, tgt_len = input_ids_shape
-        # mask = GaudiAttentionMaskConverter._create_causal_mask(input_ids_shape, dtype, device, past_key_values_length)
-
-        mask = torch.full((tgt_len, tgt_len), torch.finfo(dtype).min, device=device)
-        mask_cond = torch.arange(mask.size(-1), device=device)
-        # lower triangle and diagonal filled with 0, upper triangles are -inf
-        mask.masked_fill_(mask_cond < (mask_cond + 1).view(mask.size(-1), 1), 0)
-
-        mask = mask.to(dtype)
-
-        if past_key_values_length > 0:
-            mask = torch.cat(
-                [torch.zeros(tgt_len, past_key_values_length - tgt_len, dtype=dtype, device=device), mask], dim=-1
-            )
 
         # add lower triangular
         diagonal = token_idx - sliding_window - 1
@@ -115,8 +113,7 @@ class GaudiAttentionMaskConverter(AttentionMaskConverter):
         key_value_length) shape and by adding a large negative bias to not-attended positions. If attention_mask is
         causal, a causal mask will be added.
         """
-        # total_len = attention_mask_2d.shape[1] #(bs, in+out)
-        input_shape = (attention_mask_2d.shape[0], query_length)  # bs, 19->1
+        input_shape = (attention_mask_2d.shape[0], query_length)
         device = attention_mask_2d.device
 
         # create causal mask
@@ -137,6 +134,7 @@ class GaudiAttentionMaskConverter(AttentionMaskConverter):
                     token_idx = None
 
                 causal_4d_mask = self._create_sliding_window_causal_mask(
+                    self,
                     input_shape,
                     dtype,
                     device=device,
@@ -146,12 +144,12 @@ class GaudiAttentionMaskConverter(AttentionMaskConverter):
                 )
             else:
                 causal_4d_mask = self._create_causal_mask(
-                    input_shape, dtype, device=device, past_key_values_length=past_key_values_length
+                    self, input_shape, dtype, device=device, past_key_values_length=past_key_values_length
                 )
 
             # just create a bool tensor with shape [bsz, 1, tgt_seq_len, src_seq_len]
             # OOM problem can be prevent by using bool tensor
-            bsz, src_len = attention_mask_2d.size()  # bs, kv_len
+            bsz, src_len = attention_mask_2d.size()
             tgt_len = input_shape[-1] if input_shape[-1] is not None else src_len
             bool_mask = attention_mask_2d != 1.0
             expanded_attn_mask = bool_mask[:, None, None, :].expand(bsz, 1, tgt_len, src_len).to(device=device)
@@ -179,7 +177,6 @@ def _gaudi_prepare_4d_causal_attention_mask(
     """
     attn_mask_converter = GaudiAttentionMaskConverter(is_causal=True, sliding_window=sliding_window)
 
-    # input_shape is input + output len
     key_value_length = input_shape[-1] + past_key_values_length
 
     # 4d mask is passed through the layers

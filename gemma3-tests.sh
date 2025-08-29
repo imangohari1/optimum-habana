@@ -1,3 +1,13 @@
+## multimodal
+logfile=gemma3-multimodal-lazy-eager-g3-020250825.log; 
+for i in $(echo "google/gemma-3-4b-it google/gemma-3-12b-it google/gemma-3-27b-it"); do
+	echo $i
+	cmd="PT_HPU_LAZY_MODE=1 python simple-gemma3-inference-hf.py --use-hpu-graphs --bf16 --model $i"
+	echo $cmd >>$logfile && eval $cmd 2>&1 | tee -a $logfile
+	cmd="PT_HPU_LAZY_MODE=0 python simple-gemma3-inference-hf.py --bf16 --model $i"
+	echo $cmd >>$logfile && eval $cmd 2>&1 | tee -a $logfile
+done
+
 ## pytests
 PT_HPU_LAZY_MODE=1 RUN_SLOW=true python -m pytest --device gaudi2 tests/transformers/tests/models/gemma2 -s -v
 
@@ -8,19 +18,19 @@ PT_HPU_LAZY_MODE=1 python examples/language-modeling/run_clm.py --model_name_or_
 bash swa-4k-prompt-test.sh
 
 ## text gen
-PT_HPU_LAZY_MODE=1 python examples/text-generation/run_generation.py --model_name_or_path google/gemma-3-4b-it --use_hpu_graphs --use_kv_cache --max_new_tokens 100 --do_sample --prompt "Here is my prompt" --sdp_on_bf16
-
-PT_HPU_LAZY_MODE=0 python examples/text-generation/run_generation.py --model_name_or_path google/gemma-3-4b-it  --use_kv_cache --max_new_tokens 100 --do_sample --prompt "Here is my prompt" --sdp_on_bf16
+logfile=gemma3-4b-text-lazy-eager-g2-20250825.log;
+PT_HPU_LAZY_MODE=1 python examples/text-generation/run_generation.py --model_name_or_path google/gemma-3-4b-it --use_hpu_graphs --use_kv_cache --max_new_tokens 100 --do_sample --prompt "DeepSpeed is a machine learning framework" --sdp_on_bf16 2>&1 | tee -a $logfile
+PT_HPU_LAZY_MODE=1 python examples/text-generation/run_generation.py --model_name_or_path google/gemma-3-4b-it --use_hpu_graphs --max_new_tokens 100 --do_sample --prompt "DeepSpeed is a machine learning framework" --sdp_on_bf16 2>&1 | tee -a $logfile
+PT_HPU_LAZY_MODE=0 python examples/text-generation/run_generation.py --model_name_or_path google/gemma-3-4b-it  --use_kv_cache --max_new_tokens 100 --do_sample --prompt "DeepSpeed is a machine learning framework" --sdp_on_bf16 2>&1 | tee -a $logfile
+PT_HPU_LAZY_MODE=0 python examples/text-generation/run_generation.py --model_name_or_path google/gemma-3-4b-it  --max_new_tokens 100 --do_sample --prompt "DeepSpeed is a machine learning framework" --sdp_on_bf16 2>&1 | tee -a $logfile
 
 PT_HPU_LAZY_MODE=1 python examples/text-generation/run_generation.py --model_name_or_path google/gemma-2-2b --use_hpu_graphs --use_kv_cache --max_new_tokens 100 --do_sample --prompt "Here is my prompt" --sdp_on_bf16
 
 ## ci 
-
 PT_HPU_LAZY_MODE=1  RUN_SLOW=true python -m pytest tests/test_text_generation_example.py::test_text_generation_bf16_1x[google/gemma-3-4b-it-1-False-True] -s -v --token $HFToken
 PT_HPU_LAZY_MODE=1  RUN_SLOW=true python -m pytest tests/test_text_generation_example.py::test_text_generation_bf16_1x[google/gemma-2-9b-1-False-True] -s -v --token $HFToken
 PT_HPU_LAZY_MODE=1  RUN_SLOW=true python -m pytest tests/test_text_generation_example.py::test_text_generation_bf16_1x -s -v --token $HFToken
 
 ## accuracy 
-
 pip install -r examples/text-generation/requirements_lm_eval.txt
 PT_HPU_LAZY_MODE=1 python examples/text-generation/run_lm_eval.py --model_name_or_path google/gemma-2-2b  --use_hpu_graphs --use_kv_cache --bf16 --batch_size=1  --max_new_tokens 8192 --tasks piqa -o tmp.json #gemma-2-9b-eval-max_new_token_8192_after_sliding_window.json
