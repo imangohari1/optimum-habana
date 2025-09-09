@@ -23,6 +23,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from transformers.cache_utils import Cache, DynamicCache, StaticCache
+from transformers.masking_utils import create_causal_mask, create_sliding_window_causal_mask
 from transformers.modeling_outputs import BaseModelOutputWithPast, CausalLMOutputWithPast
 from transformers.models.gemma3.modeling_gemma3 import (
     Gemma3Attention,
@@ -642,20 +643,42 @@ class GaudiGemma3TextModel(Gemma3TextModel):
 
         # HPU specific mask generation
         if ignore_cache_position:
-            causal_mask = _gaudi_prepare_4d_causal_attention_mask(
-                attention_mask,
-                input_ids.shape if input_ids is not None else (batch_size, seq_length),
-                inputs_embeds,
-                past_seen_tokens,
-            )
+            if not isinstance(causal_mask_mapping := attention_mask, dict):
+                """
+                Addapted from here: https://github.com/huggingface/transformers/blob/v4.55.0/src/transformers/models/gemma2/modeling_gemma2.py#L416-L430
+                with _gaudi_prepare_4d_causal_attention_mask
+                """
+                causal_mask_mapping = {
+                    "full_attention": _gaudi_prepare_4d_causal_attention_mask(
+                        attention_mask,
+                        input_ids.shape if input_ids is not None else (batch_size, seq_length),
+                        inputs_embeds,
+                        past_seen_tokens,
+                    ),
+                    "sliding_attention": _gaudi_prepare_4d_causal_attention_mask(
+                        attention_mask,
+                        input_ids.shape if input_ids is not None else (batch_size, seq_length),
+                        inputs_embeds,
+                        past_seen_tokens,
+                        self.config.sliding_window,
+                    ),
+                }
         else:
-            causal_mask = self._update_causal_mask(
-                attention_mask,
-                inputs_embeds,
-                cache_position,
-                past_key_values,
-                output_attentions,
-            )
+            if not isinstance(causal_mask_mapping := attention_mask, dict):
+                # Prepare mask arguments
+                mask_kwargs = {
+                    "config": self.config,
+                    "input_embeds": inputs_embeds,
+                    "attention_mask": attention_mask,
+                    "cache_position": cache_position,
+                    "past_key_values": past_key_values,
+                    "position_ids": position_ids,
+                }
+                # Create the masks
+                causal_mask_mapping = {
+                    "full_attention": create_causal_mask(**mask_kwargs),
+                    "sliding_attention": create_sliding_window_causal_mask(**mask_kwargs),
+                }
         # embed positions
         hidden_states = inputs_embeds
 
@@ -686,7 +709,7 @@ class GaudiGemma3TextModel(Gemma3TextModel):
                 hidden_states,
                 position_embeddings_global=position_embeddings_global,
                 position_embeddings_local=position_embeddings_local,
-                attention_mask=causal_mask,
+                attention_mask=causal_mask_mapping[decoder_layer.attention_type],
                 position_ids=position_ids,
                 past_key_value=None if past_key_values is None else past_key_values[layer_idx],
                 output_attentions=output_attentions,
