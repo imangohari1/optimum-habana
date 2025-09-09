@@ -124,6 +124,7 @@ from .gemma3 import (
     GaudiGemma3ForCausalLM,
     GaudiGemma3ForConditionalGeneration,
     GaudiGemma3MLP,
+    GaudiGemma3Model,
     GaudiGemma3RotaryEmbedding,
     GaudiGemma3TextModel,
 )

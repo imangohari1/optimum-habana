@@ -90,7 +90,9 @@ class HabanaModelAdapter(HFLM):
         self.use_lazy_mode = True
         if args.torch_compile:
             self.use_lazy_mode = False
-        self.vocab_size = self._model.config.vocab_size
+        # breakpoint()
+        self.vocab_size = self._model.language_model.config.vocab_size
+        # self.vocab_size = self._model.config.vocab_size
         if "gemma" in getattr(self._config, "model_type", ""):
             self.add_bos_token = True
             logger.info(
