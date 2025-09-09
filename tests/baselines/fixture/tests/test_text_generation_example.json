@@ -242,8 +242,8 @@
       "throughput": 32.452270975799294
     },
     "gaudi3": {
-      "output": "DeepSpeed is a machine learning framework that offers a wide range of optimizations to accelerate large-scale model training. It's developed by Microsoft and is particularly well-suited for training models with billions of parameters, such as large language models (LLMs). Here's a breakdown of its key features and benefits:\n\n**Core Concepts & Optimizations**\n\n* **ZeRO (Zero Redundancy Optimizer):** This is the heart of DeepSpeed.  It reduces the memory footprint required for training, allowing you to fit larger", 
-      "throughput": 37.78136823732028
+      "output": "DeepSpeed is a machine learning framework that enables you to train models with hundreds of billions or even trillions of parameters. Here's a breakdown of what it is, its key features, and how it compares to other approaches:\n\n**What is DeepSpeed?**\n\nDeveloped by Microsoft, DeepSpeed is a deep learning optimization library designed to make large-scale model training more efficient, accessible, and cost-effective. It's built on PyTorch and is open-source. It's particularly notable for enabling the training of",
+      "throughput": 39.44560144398928
     }
   },
   "tests/test_text_generation_example.py::test_text_generation_bf16_1x[google/gemma-3-12b-it-1-False-True]": {
@@ -252,8 +252,8 @@
       "throughput": 61.71074422705317
     },
     "gaudi3": {
-      "output": "DeepSpeed is a machine learning framework that dramatically reduces memory requirements for training deep learning models, enabling faster and more efficient training of large-scale models. It's built on PyTorch and designed for researchers and practitioners working with massive datasets and models that exceed the memory capacity of a single GPU. Here's a breakdown of its key features, how it works, and its benefits:\n\n**Key Features and Techniques**\n\n* **ZeRO (Zero Redundancy Optimizer):** This is the core technology behind DeepSpeed's",
-      "throughput": 68.95654769698997
+      "output": "DeepSpeed is a machine learning framework focused on improving the performance and scalability of training deep learning models. It's designed to handle very large models and datasets, often using techniques like model parallelism, data parallelism, and optimization techniques like ZeRO (Zero Redundancy Optimizer).\n\nHere's a breakdown of key concepts and functionalities within DeepSpeed:\n\n**1. Key Goals & Benefits**\n\n* **Scalability:**  DeepSpeed's primary goal is to enable training extremely large models (billions or even trillions of parameters",
+      "throughput": 73.60194756632804
     }
   },
   "tests/test_text_generation_example.py::test_text_generation_bf16_1x[google/gemma-3-4b-it-1-False-True]": {
@@ -262,8 +262,8 @@
       "throughput": 122.94066562987123
     },
     "gaudi3": {
-      "output": "DeepSpeed is a machine learning framework that dramatically reduces the cost of training large AI models. It leverages techniques like ZeRO and Zero Redundancy Optimizer to efficiently utilize memory, which is often the bottleneck when training massive models.\n\nHere's a breakdown of DeepSpeed's key features and benefits:\n\n**1. Core Technologies:**\n\n* **ZeRO (Zero Redundancy Optimizer):** This is the heart of DeepSpeed. ZeRO shards the optimizer states, gradients, and parameters across multiple GPUs, significantly reducing memory",
-      "throughput": 125.16201280623623
+      "output": "DeepSpeed is a machine learning framework focused on efficient training and serving of large models. It is built on PyTorch and aims to overcome the memory and computational limitations that often arise when training large neural networks.\n\nHere's a breakdown of DeepSpeed's key features, benefits, and how it works:\n\n**1. Core Technologies & Techniques:**\n\n* **ZeRO (Zero Redundancy Optimizer):** This is the cornerstone of DeepSpeed. It drastically reduces memory consumption by partitioning the optimizer states, gradients, and parameters",
+      "throughput": 136.715509522129
     }
   },
   "tests/test_text_generation_example.py::test_text_generation_bf16_1x[google/gemma-2-27b-1-False-True]": {
