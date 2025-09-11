@@ -22,7 +22,7 @@ from typing import Optional, Union
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from transformers.cache_utils import Cache, DynamicCache, StaticCache
+from transformers.cache_utils import Cache
 from transformers.masking_utils import create_causal_mask, create_sliding_window_causal_mask
 from transformers.modeling_outputs import BaseModelOutputWithPast, CausalLMOutputWithPast
 from transformers.models.gemma3.modeling_gemma3 import (
@@ -605,7 +605,7 @@ class GaudiGemma3TextModel(Gemma3TextModel):
             inputs_embeds = self.embed_tokens(input_ids)
 
         ignore_cache_position = True  # Ignoring cache position for HPU
-        use_new_cache = False  # Ignoring new Cache path for HPU
+        # use_new_cache = False  # Ignoring new Cache path for HPU
 
         past_seen_tokens = 0
 
@@ -616,12 +616,8 @@ class GaudiGemma3TextModel(Gemma3TextModel):
                 else:
                     past_seen_tokens = past_key_values[0][0][2]
             else:
-                if use_new_cache:
-                    if not isinstance(past_key_values, StaticCache):
-                        past_key_values = DynamicCache.from_legacy_cache(past_key_values)
-                    past_seen_tokens = past_key_values.get_seq_length()
-                else:
-                    past_seen_tokens = past_key_values[0][0].shape[2]
+                # HPU uses legacy cache path (use_new_cache = False)
+                past_seen_tokens = past_key_values[0][0].shape[2]
 
         if ignore_cache_position is False:
             if cache_position is None:
@@ -689,7 +685,8 @@ class GaudiGemma3TextModel(Gemma3TextModel):
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
         all_self_attns = () if output_attentions else None
-        next_decoder_cache = () if not use_new_cache else None
+        # HPU uses legacy cache path (use_new_cache = False)
+        next_decoder_cache = ()
 
         if lazy_mode:
             htcore.mark_step()
@@ -1072,6 +1069,7 @@ class GaudiGemma3ForConditionalGeneration(Gemma3ForConditionalGeneration):
         cache_position=None,
         position_ids=None,
         use_cache=True,
+        pixel_values=None,
         **kwargs,
     ):
         """
@@ -1122,6 +1120,9 @@ class GaudiGemma3ForConditionalGeneration(Gemma3ForConditionalGeneration):
             model_inputs = {"inputs_embeds": inputs_embeds}
         else:
             model_inputs = {"input_ids": input_ids.contiguous()}
+
+        if cache_position[0] == 0:
+            model_inputs["pixel_values"] = pixel_values
 
         model_inputs.update(
             {
