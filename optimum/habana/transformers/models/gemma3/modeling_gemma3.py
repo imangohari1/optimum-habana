@@ -1074,6 +1074,7 @@ class GaudiGemma3ForConditionalGeneration(Gemma3ForConditionalGeneration):
     ):
         """
         Inherits from Gemma2: https://github.com/huggingface/optimum-habana/blob/v1.18.1/optimum/habana/transformers/models/gemma2/modeling_gemma2.py#L973
+        - with pixel_values: https://github.com/huggingface/transformers/blob/v4.55.4/src/transformers/models/gemma3/modeling_gemma3.py#L1164-L1165
         """
 
         reuse_cache = kwargs.get("reuse_cache")
@@ -1121,6 +1122,7 @@ class GaudiGemma3ForConditionalGeneration(Gemma3ForConditionalGeneration):
         else:
             model_inputs = {"input_ids": input_ids.contiguous()}
 
+        # taken from upstream: https://github.com/huggingface/transformers/blob/v4.55.4/src/transformers/models/gemma3/modeling_gemma3.py#L1164-L1165
         if cache_position[0] == 0:
             model_inputs["pixel_values"] = pixel_values
 
