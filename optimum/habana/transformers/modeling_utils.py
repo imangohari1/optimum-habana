@@ -260,6 +260,7 @@ from .models import (
     gaudi_falcon_linear_forward,
     gaudi_FalconMambaForCausalLM_prepare_inputs_for_generation,
     gaudi_FalconMambaModel_forward,
+    gaudi_gemma3_rmsnorm_forward,
     gaudi_generate_speech,
     gaudi_get_extended_attention_mask,
     gaudi_gpt2_forward,
@@ -617,6 +618,7 @@ def adapt_transformers_to_gaudi():
     transformers.models.gemma3.modeling_gemma3.Gemma3TextModel = GaudiGemma3TextModel
     transformers.models.gemma3.modeling_gemma3.Gemma3Model = GaudiGemma3Model
     transformers.models.gemma3.modeling_gemma3.Gemma3ForConditionalGeneration = GaudiGemma3ForConditionalGeneration
+    transformers.models.gemma3.modeling_gemma3.Gemma3RMSNorm.forward = gaudi_gemma3_rmsnorm_forward
 
     # Optimization for blip Text model on Gaudi
     transformers.models.blip.BlipTextModel.forward = gaudi_BlipTextModel_forward

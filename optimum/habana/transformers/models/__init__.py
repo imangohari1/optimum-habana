@@ -125,8 +125,8 @@ from .gemma3 import (
     GaudiGemma3ForConditionalGeneration,
     GaudiGemma3MLP,
     GaudiGemma3Model,
-    GaudiGemma3RotaryEmbedding,
     GaudiGemma3TextModel,
+    gaudi_gemma3_rmsnorm_forward,
 )
 from .glm4v import (
     ChatGLM4Tokenizer,

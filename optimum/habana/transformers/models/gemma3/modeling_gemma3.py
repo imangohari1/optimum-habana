@@ -56,11 +56,9 @@ except ImportError:
 
 try:
     from habana_frameworks.torch.hpex.normalization import FusedRMSNorm as FusedRMSNorm
-
-    has_fused_rms_norm = True
 except ImportError:
-    has_fused_rms_norm = False
     print("Not using HPU fused kernel for RMSNorm")
+    FusedRMSNorm = None
 
 try:
     from habana_frameworks.torch.hpex.kernels import FusedSDPA
@@ -74,10 +72,22 @@ import habana_frameworks.torch.core as htcore
 logger = logging.get_logger(__name__)
 
 
-class GaudiGemma3RotaryEmbedding(GaudiRotaryEmbedding):
-    def __init__(self, config: Gemma3TextConfig):
-        config.rope_scaling = getattr(config, "rope_scaling", None)
-        super().__init__(config=config)
+# class GaudiGemma3RotaryEmbedding(GaudiRotaryEmbedding):
+#     def __init__(self, config: Gemma3TextConfig):
+#         config.rope_scaling = getattr(config, "rope_scaling", None)
+#         super().__init__(config=config)
+
+def gaudi_gemma3_rmsnorm_forward(self, x):
+    if x.device.type == "hpu" and FusedRMSNorm is not None:
+        output = FusedRMSNorm.apply(x.float(), torch.ones_like(self.weight), self.eps)
+        output = output * (1.0 + self.weight.float())
+        return output.type_as(x)
+    else:
+        output = self._norm(x.float())
+        # Llama does x.to(float16) * w whilst Gemma3 is (x * w).to(float16)
+        # See https://github.com/huggingface/transformers/pull/29402
+        output = output * (1.0 + self.weight.float())
+        return output.type_as(x)
 
 
 def gaudi_gemma3_repeat_kv(
@@ -148,11 +158,11 @@ def gaudi_eager_attention_forward(
 class GaudiGemma3Attention(Gemma3Attention):
     def __init__(self, config: Gemma3TextConfig, layer_idx: Optional[int] = None):
         super().__init__(config, layer_idx)
-        self.rotary_emb = GaudiGemma3RotaryEmbedding(config=self.config)
+        self.rotary_emb = GaudiRotaryEmbedding(config=self.config)
         config = copy.deepcopy(config)
         config.rope_theta = config.rope_local_base_freq
         config.rope_scaling = {"rope_type": "default"}
-        self.rotary_emb_local = GaudiGemma3RotaryEmbedding(config=config)
+        self.rotary_emb_local = GaudiRotaryEmbedding(config=config)
 
         self.matmul_qk = Matmul()
         self.matmul_av = Matmul()

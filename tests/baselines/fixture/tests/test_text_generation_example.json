@@ -238,32 +238,32 @@
   },
   "tests/test_text_generation_example.py::test_text_generation_bf16_1x[google/gemma-3-27b-it-1-False-True]": {
     "gaudi2": {
-      "output": "DeepSpeed is a machine learning framework designed to make distributed training easier and more efficient. It is created by Microsoft and has gained significant traction in the research and industry communities due to its ability to train large models with limited hardware resources.\nHere's a breakdown of the key features and benefits of DeepSpeed:\n\n**Core Features & Technologies:**\n\n*   **ZeRO (Zero Redundancy Optimizer):**  This is the cornerstone of DeepSpeed. It tackles the memory bottleneck in distributed training by partitioning model states (weights,",
-      "throughput": 32.452270975799294
+      "output": "DeepSpeed is a machine learning framework that enables you to train models with hundreds of billions or even trillions of parameters. Here's a breakdown of what it is, its key features, and how it compares to other approaches:\n\n**What is DeepSpeed?**\n\nDeveloped by Microsoft, DeepSpeed is a deep learning optimization library designed to make large-scale model training more efficient, accessible, and cost-effective. It's built on PyTorch and is open-source. It's particularly notable for enabling the training of",
+      "throughput": 34.082512922376125
     },
     "gaudi3": {
-      "output": "DeepSpeed is a machine learning framework that enables you to train models with hundreds of billions or even trillions of parameters. Here's a breakdown of what it is, its key features, and how it compares to other approaches:\n\n**What is DeepSpeed?**\n\nDeveloped by Microsoft, DeepSpeed is a deep learning optimization library designed to make large-scale model training more efficient, accessible, and cost-effective. It's built on PyTorch and is open-source. It's particularly notable for enabling the training of",
-      "throughput": 39.44560144398928
+      "output": "DeepSpeed is a machine learning framework that enables training very large models with high efficiency. It is often used with PyTorch, and it can significantly reduce memory usage and increase training throughput. Here's a breakdown of how it works, its key features, and how to use it:\n\n**How DeepSpeed Works**\n\nDeepSpeed achieves its efficiency through a combination of innovative techniques, primarily focusing on these areas:\n\n* **ZeRO (Zero Redundancy Optimizer):** This is the cornerstone of DeepSpeed. ZeRO partitions",
+      "throughput": 42.50246201556991
     }
   },
   "tests/test_text_generation_example.py::test_text_generation_bf16_1x[google/gemma-3-12b-it-1-False-True]": {
     "gaudi2": {
-      "output": "DeepSpeed is a machine learning framework focused on improving the performance and scalability of training deep learning models. It's designed to handle very large models and datasets, often used in areas like Natural Language Processing (NLP) and Computer Vision. Here's a breakdown of what DeepSpeed offers, how it works, and why it's valuable.\n\n**Key Features and Benefits**\n\n* **Scalability:** DeepSpeed's primary goal is to allow you to train models that are too large to fit on a single GPU or even",
-      "throughput": 58.022545212763546
+      "output": "DeepSpeed is a machine learning framework focused on improving the performance and scalability of training deep learning models. It's designed to handle very large models and datasets, often using techniques like model parallelism, data parallelism, and optimization techniques like ZeRO.\n\nHere's a breakdown of its core concepts and how it works, along with common use cases and examples:\n\n**Key Concepts & Techniques**\n\n* **ZeRO (Zero Redundancy Optimizer):** The cornerstone of DeepSpeed. ZeRO dramatically reduces memory consumption by partitioning model",
+      "throughput": 68.30196577764131
     },
     "gaudi3": {
-      "output": "DeepSpeed is a machine learning framework focused on improving the performance and scalability of training deep learning models. It's designed to handle very large models and datasets, often using techniques like model parallelism, data parallelism, and optimization techniques like ZeRO (Zero Redundancy Optimizer).\n\nHere's a breakdown of key concepts and functionalities within DeepSpeed:\n\n**1. Key Goals & Benefits**\n\n* **Scalability:**  DeepSpeed's primary goal is to enable training extremely large models (billions or even trillions of parameters",
-      "throughput": 69.15032921221514
+      "output": "DeepSpeed is a machine learning framework focused on improving the performance and scalability of training deep learning models. It's designed to handle very large models and datasets, often used in areas like Natural Language Processing (NLP) and Computer Vision. Here's a breakdown of its key features and how it works:\n\n**1. Core Technologies & Benefits**\n\n* **ZeRO (Zero Redundancy Optimizer):**  This is the *key* innovation in DeepSpeed.  ZeRO tackles the memory bottleneck that arises when training massive",
+      "throughput": 81.15713149929978
     }
   },
   "tests/test_text_generation_example.py::test_text_generation_bf16_1x[google/gemma-3-4b-it-1-False-True]": {
     "gaudi2": {
-      "output": "DeepSpeed is a machine learning framework focused on efficient training and inference of large models. It is built on PyTorch and aims to overcome the memory and computational limitations that often arise when training large neural networks.\n\nHere's a breakdown of DeepSpeed's key features, benefits, and how it works:\n\n**1. Core Technologies & Techniques:**\n\n* **ZeRO (Zero Redundancy Optimizer):** This is the cornerstone of DeepSpeed. It dramatically reduces memory consumption by partitioning the optimizer states, gradients, and parameters",
-      "throughput": 112.10840313346671
+      "output": "DeepSpeed is a machine learning framework focused on efficient training and inference of large models. It is developed by Microsoft and offers various optimizations like ZeRO, which is a memory partitioning technique to reduce memory footprint, and other features for faster training.\n\nHere's a breakdown of key aspects of DeepSpeed:\n\n**1. Core Technologies:**\n\n* **ZeRO (Zero Redundancy Optimizer):** This is the heart of DeepSpeed. It's a memory optimization technique that breaks down model parameters, gradients, and optimizer states",
+      "throughput": 141.28462701651054
     },
     "gaudi3": {
-      "output": "DeepSpeed is a machine learning framework focused on efficient training and serving of large models. It is built on PyTorch and aims to overcome the memory and computational limitations that often arise when training large neural networks.\n\nHere's a breakdown of DeepSpeed's key features, benefits, and how it works:\n\n**1. Core Technologies & Techniques:**\n\n* **ZeRO (Zero Redundancy Optimizer):** This is the cornerstone of DeepSpeed. It drastically reduces memory consumption by partitioning the optimizer states, gradients, and parameters",
-      "throughput": 125.14846550177148
+      "output": "DeepSpeed is a machine learning framework focused on efficient training and inference of large models. It is developed by Microsoft and offers various optimizations like ZeRO, which is a memory partitioning technique to reduce memory footprint, and other features such as data parallelism and pipeline parallelism.\n\nHere's a breakdown of its key features and how it compares to other frameworks like PyTorch and TensorFlow:\n\n**Key Features of DeepSpeed:**\n\n* **ZeRO (Zero Redundancy Optimizer):** This is the core of DeepSpeed. It comes in",
+      "throughput": 153.30181217767333
     }
   },
   "tests/test_text_generation_example.py::test_text_generation_bf16_1x[google/gemma-2-27b-1-False-True]": {
