@@ -255,6 +255,7 @@ from .models import (
     gaudi_falcon_linear_forward,
     gaudi_FalconMambaForCausalLM_prepare_inputs_for_generation,
     gaudi_FalconMambaModel_forward,
+    gaudi_gemma2_rmsnorm_forward,
     gaudi_gemma3_rmsnorm_forward,
     gaudi_generate_speech,
     gaudi_get_extended_attention_mask,
@@ -596,6 +597,7 @@ def adapt_transformers_to_gaudi():
     transformers.models.gemma2.modeling_gemma2.Gemma2DecoderLayer = GaudiGemma2DecoderLayer
     transformers.models.gemma2.modeling_gemma2.Gemma2Model = GaudiGemma2Model
     transformers.models.gemma2.modeling_gemma2.Gemma2RotaryEmbedding = GaudiGemma2RotaryEmbedding
+    transformers.models.gemma2.modeling_gemma2.Gemma2RMSNorm.forward = gaudi_gemma2_rmsnorm_forward
 
     # Optimization for gemma3 on Gaudi
     transformers.models.gemma3.modeling_gemma3.Gemma3ForCausalLM = GaudiGemma3ForCausalLM

@@ -268,22 +268,22 @@
   },
   "tests/test_text_generation_example.py::test_text_generation_bf16_1x[google/gemma-2-27b-1-False-True]": {
     "gaudi2": {
-      "output": "DeepSpeed is a machine learning framework that enables you to train models with trillions of parameters and beyond, using model parallelism to partition large models over multiple GPUs.\n\nThe following is a brief introduction to the DeepSpeed model parallel training.\n\n<h2>1. Introduction</h2>\n\nThe DeepSpeed model parallel training is a simple and effective way to train large models. It is a framework that enables you to train models with trillions of parameters and beyond.\n\nDeepSpeed is a distributed deep learning optimization toolkit that makes it easy and efficient",
-      "throughput": 36.578709544111
+      "output": "DeepSpeed is a machine learning framework that is designed to help you train your models faster and more efficiently. DeepSpeed is a system that allows you to train your models faster and more efficiently. DeepSpeed is a machine learning framework that is designed to help you train your models faster and more efficiently. DeepSpeed is a system that allows you to train your models faster and more efficiently.\n\nI’m going to repeat myself. DeepSpeed is a machine learning framework that is designed to help you train your models faster and more efficiently.\n\n",
+      "throughput": 38.30642095055842
     },
     "gaudi3": {
-      "output": "DeepSpeed is a machine learning framework that enables you to train large models on a single GPU. It is a framework that is used to train large models on a single GPU.\n\nThe main idea is to use a large amount of memory to fit the model on a single GPU.\n\nThe main idea of \u200b\u200bthe algorithm is to use the gradient of the loss function to update the model parameters.\n\nThe main idea of \u200b\u200bthe algorithm is to use the gradient of the loss function to update the model parameters.\n\nThe main idea of",
-      "throughput": 46.04685368495098
+      "output": "DeepSpeed is a machine learning framework that enables you to train deep learning models at any scale. It is a system and deep learning software optimization system that makes distributed deep learning practical. DeepSpeed allows researchers and engineers to train deep learning models with terabyte-scale with hundreds of billions of parameters with acceptable speed and accuracy.\n\nDeepSpeed is a deep learning optimization and parallelism library from Microsoft Research optimized for efficiency, developed to train large models efficiently on multiple GPUs.\n\nDeepSpeed is a system and library effort ongoing for over three years.",
+      "throughput": 48.842401849049224
     }
   },
   "tests/test_text_generation_example.py::test_text_generation_bf16_1x[google/gemma-2-9b-1-False-True]": {
     "gaudi2": {
       "output": "DeepSpeed is a machine learning framework that enables training of large-scale deep learning models on a single GPU or across multiple GPUs. It is designed to be easy to use and highly scalable, making it a popular choice for training large-scale models such as GPT-3 and BERT.\n\nDeepSpeed is built on top of PyTorch, a popular deep learning framework, and provides a set of tools and libraries that make it easy to train large-scale models. It includes features such as zero-shot learning, which allows models to",
-      "throughput": 92.302359446567
+      "throughput": 99.98690579203925
     },
     "gaudi3": {
-      "output": "DeepSpeed is a machine learning framework that enables training of large-scale deep learning models on a single GPU or across multiple GPUs. It is designed to be easy to use and highly scalable, making it a powerful tool for researchers and practitioners working with large-scale deep learning models.\n\nDeepSpeed is built on top of PyTorch, a popular deep learning framework, and provides a set of tools and libraries that make it easy to train large-scale models. It includes features such as zero-shot inference, which allows models to be",
-      "throughput": 111.60209707224463
+      "output": "DeepSpeed is a machine learning framework that enables training of large-scale deep learning models on a single GPU or across multiple GPUs. It is designed to be easy to use and to provide high performance.\n\nDeepSpeed is built on top of PyTorch, a popular deep learning framework. It provides a number of features that make it easy to train large-scale models, including:\n\n* Automatic model parallelism: DeepSpeed automatically parallelizes the model across multiple GPUs, so you don’t have to worry about how to do it yourself",
+      "throughput": 117.69951320588835
     }
   },
   "tests/test_text_generation_example.py::test_text_generation_bf16_1x[google/gemma-7b-1-False-False]": {

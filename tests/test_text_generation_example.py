@@ -26,6 +26,8 @@ if OH_DEVICE_CONTEXT not in ["gaudi1"]:
             ("google/gemma-3-4b-it", 1, False, True),
             ("google/gemma-3-12b-it", 1, False, True),
             ("google/gemma-3-27b-it", 1, False, True),
+            ("google/gemma-2-9b", 1, False, True),
+            ("google/gemma-2-27b", 1, False, True),
         ],
         "_bf16_1x": [
             ("bigscience/bloomz-7b1", 1, False, False, False),

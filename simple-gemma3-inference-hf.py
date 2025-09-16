@@ -9,9 +9,7 @@ from transformers import AutoProcessor
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="A script demonstrating argparse usage."
-    )
+    parser = argparse.ArgumentParser(description="A script demonstrating argparse usage.")
 
     # Add model
     parser.add_argument(

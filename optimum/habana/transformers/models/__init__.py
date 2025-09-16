@@ -117,6 +117,7 @@ from .gemma2 import (
     GaudiGemma2MLP,
     GaudiGemma2Model,
     GaudiGemma2RotaryEmbedding,
+    gaudi_gemma2_rmsnorm_forward,
 )
 from .gemma3 import (
     GaudiGemma3Attention,
