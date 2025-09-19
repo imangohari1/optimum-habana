@@ -23,11 +23,11 @@ if OH_DEVICE_CONTEXT not in ["gaudi1"]:
     # Gaudi2+
     MODELS_TO_TEST = {
         "bf16_1x": [
-            ("google/gemma-3-4b-it", 1, False, True),
-            ("google/gemma-3-12b-it", 1, False, True),
-            ("google/gemma-3-27b-it", 1, False, True),
-            ("google/gemma-2-9b", 1, False, True),
-            ("google/gemma-2-27b", 1, False, True),
+            ("google/gemma-2-9b", 1, False, True, False),
+            ("google/gemma-2-27b", 1, False, True, False),
+            ("google/gemma-3-4b-it", 1, False, True, False),
+            ("google/gemma-3-12b-it", 1, False, True, False),
+            ("google/gemma-3-27b-it", 1, False, True, False),
         ],
         "_bf16_1x": [
             ("bigscience/bloomz-7b1", 1, False, False, False),
@@ -439,12 +439,10 @@ def _test_text_generation(
 
 
 @pytest.mark.parametrize(
-    # "model_name, batch_size, reuse_cache, check_output, use_flex_attention", MODELS_TO_TEST["bf16_1x"]
-    "model_name, batch_size, reuse_cache, check_output",
-    MODELS_TO_TEST["bf16_1x"],
+    "model_name, batch_size, reuse_cache, check_output, use_flex_attention", MODELS_TO_TEST["bf16_1x"]
 )
 def test_text_generation_bf16_1x(
-    model_name: str, batch_size: int, reuse_cache: bool, check_output: bool, baseline, token
+    model_name: str, batch_size: int, reuse_cache: bool, check_output: bool, use_flex_attention: bool, baseline, token
 ):
     _test_text_generation(
         model_name=model_name,
@@ -453,7 +451,7 @@ def test_text_generation_bf16_1x(
         batch_size=batch_size,
         reuse_cache=reuse_cache,
         check_output=check_output,
-        use_flex_attention=False,
+        use_flex_attention=use_flex_attention,
     )
 
 

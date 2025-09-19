@@ -71,12 +71,6 @@ import habana_frameworks.torch.core as htcore
 
 logger = logging.get_logger(__name__)
 
-
-# class GaudiGemma3RotaryEmbedding(GaudiRotaryEmbedding):
-#     def __init__(self, config: Gemma3TextConfig):
-#         config.rope_scaling = getattr(config, "rope_scaling", None)
-#         super().__init__(config=config)
-
 def gaudi_gemma3_rmsnorm_forward(self, x):
     if x.device.type == "hpu" and FusedRMSNorm is not None:
         output = FusedRMSNorm.apply(x.float(), torch.ones_like(self.weight), self.eps)
@@ -317,8 +311,6 @@ class GaudiGemma3Attention(Gemma3Attention):
             attn_weights = None
             import habana_frameworks.torch.hpu as ht
 
-            softmax_mode = "fast" if flash_attention_fast_softmax else "None"
-
             if q_len == 1:
                 # next token
                 with ht.sdp_kernel(enable_recompute=False):
@@ -327,6 +319,7 @@ class GaudiGemma3Attention(Gemma3Attention):
                     )
             else:
                 # first token
+                softmax_mode = "fast" if flash_attention_fast_softmax else "None"
                 if flash_attention_causal_mask:
                     # causal masking on first token requires inputs to be of the same length
                     with ht.sdp_kernel(enable_recompute=flash_attention_recompute):
@@ -615,7 +608,6 @@ class GaudiGemma3TextModel(Gemma3TextModel):
             inputs_embeds = self.embed_tokens(input_ids)
 
         ignore_cache_position = True  # Ignoring cache position for HPU
-        # use_new_cache = False  # Ignoring new Cache path for HPU
 
         past_seen_tokens = 0
 

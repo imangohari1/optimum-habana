@@ -93,7 +93,6 @@ class HabanaModelAdapter(HFLM):
         self.ignore_eos = args.ignore_eos
         if args.torch_compile:
             self.use_lazy_mode = False
-        # breakpoint()
         _vision_models = ["gemma-3"]
         _multimodal = True if any(model in args.model_name_or_path for model in _vision_models) else False
         self.vocab_size = (

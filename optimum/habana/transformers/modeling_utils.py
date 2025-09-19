@@ -324,6 +324,7 @@ from .models import (
     gaudi_XLMRoberta_Sdpa_SelfAttention_forward,
 )
 from .models.deepseek_v2.modeling_deepseek_v2 import DeepseekV2ForCausalLM as GaudiDeepseekV2ForCausalLM
+from .pipelines import GaudiImageToTextPipeline
 
 
 def adapt_transformers_to_gaudi():
@@ -403,6 +404,9 @@ def adapt_transformers_to_gaudi():
     transformers.generation.MaxTimeCriteria.__call__ = gaudi_MaxTimeCriteria_call
     transformers.generation.EosTokenCriteria.__call__ = gaudi_EosTokenCriteria_call
     transformers.generation.StoppingCriteriaList.__call__ = gaudi_StoppingCriteriaList_call
+    transformers.pipelines.image_to_text.ImageToTextPipeline._default_generation_config = (
+        GaudiImageToTextPipeline._default_generation_config
+    )
 
     # Optimization for BLOOM generation on Gaudi
     transformers.models.bloom.modeling_bloom.BloomAttention.forward = gaudi_bloom_attention_forward
@@ -622,6 +626,15 @@ def adapt_transformers_to_gaudi():
     transformers.models.gemma3.modeling_gemma3.Gemma3Model = GaudiGemma3Model
     transformers.models.gemma3.modeling_gemma3.Gemma3ForConditionalGeneration = GaudiGemma3ForConditionalGeneration
     transformers.models.gemma3.modeling_gemma3.Gemma3RMSNorm.forward = gaudi_gemma3_rmsnorm_forward
+
+    # Optimization for gemma3 on Gaudi
+    transformers.models.gemma3.modeling_gemma3.Gemma3ForCausalLM = GaudiGemma3ForCausalLM
+    transformers.models.gemma3.modeling_gemma3.Gemma3MLP = GaudiGemma3MLP
+    transformers.models.gemma3.modeling_gemma3.Gemma3Attention = GaudiGemma3Attention
+    transformers.models.gemma3.modeling_gemma3.Gemma3DecoderLayer = GaudiGemma3DecoderLayer
+    transformers.models.gemma3.modeling_gemma3.Gemma3TextModel = GaudiGemma3TextModel
+    transformers.models.gemma3.modeling_gemma3.Gemma3Model = GaudiGemma3Model
+    transformers.models.gemma3.modeling_gemma3.Gemma3ForConditionalGeneration = GaudiGemma3ForConditionalGeneration
 
     # Optimization for blip Text model on Gaudi
     transformers.models.blip.BlipTextModel.forward = gaudi_BlipTextModel_forward
