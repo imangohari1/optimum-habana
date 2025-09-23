@@ -71,6 +71,7 @@ import habana_frameworks.torch.core as htcore
 
 logger = logging.get_logger(__name__)
 
+
 def gaudi_gemma3_rmsnorm_forward(self, x):
     if x.device.type == "hpu" and FusedRMSNorm is not None:
         output = FusedRMSNorm.apply(x.float(), torch.ones_like(self.weight), self.eps)
